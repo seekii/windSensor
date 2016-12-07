@@ -1,0 +1,46 @@
+[DebugChecksum]
+Checksum=1675115727
+[Stack]
+FillEnabled=0
+OverflowWarningsEnabled=1
+WarningThreshold=90
+SpWarningsEnabled=1
+WarnLogOnly=1
+UseTrigger=1
+TriggerName=main
+LimitSize=0
+ByteLimit=50
+[CallStack]
+ShowArgs=0
+[Disassembly]
+MixedMode=1
+[DataSample]
+LogEnabled=0
+GraphEnabled=0
+ShowTimeLog=1
+ShowTimeSum=1
+[Log file]
+LoggingEnabled=_ 0
+LogFile=_ ""
+Category=_ 0
+[TermIOLog]
+LoggingEnabled=_ 0
+LogFile=_ ""
+[Breakpoints]
+Bp0=_ "STD_CODE" "{$PROJ_DIR$\Project\Discover\src\icc_measure.c}.107.3" 0 0 0 0 "" 0 ""
+Bp1=_ "STD_CODE" "0x008ACF" 0 0 0 0 "" 0 ""
+Bp2=_ "STD_CODE" "{$PROJ_DIR$\Project\Discover\src\main.c}.782.1" 0 0 0 0 "" 0 ""
+Bp3=_ "STD_CODE" "{$PROJ_DIR$\Project\Discover\src\A7102.c}.705.3" 0 0 0 0 "" 0 ""
+Bp4=_ "STD_CODE" "{$PROJ_DIR$\Project\Discover\src\main.c}.781.1" 0 0 0 0 "" 0 ""
+Bp5=_ "STD_CODE" "{$PROJ_DIR$\Project\Discover\src\main.c}.779.5" 0 0 0 0 "" 0 ""
+Bp6=_ "STD_CODE" "{$PROJ_DIR$\Project\Discover\src\main.c}.741.17" 0 0 0 0 "" 0 ""
+Bp7=_ "STD_CODE" "0x0085E2" 0 0 0 0 "" 0 ""
+Bp8=_ "STD_CODE" "0x008080" 0 0 0 0 "" 0 ""
+Count=9
+[Aliases]
+A0=_ "E:\share\Wind-Stm8\Project\Discover\src\main.c" ""
+A1=_ "F:\share\Wind-Stm8\Project\Discover\src\main.c" ""
+Count=2
+SuppressDialog=0
+[DebuggerSettings]
+DisableInterruptsWhenStepping=0

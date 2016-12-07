@@ -1,0 +1,1282 @@
+###############################################################################
+#
+# IAR C/C++ Compiler V2.10.2.149 for STM8                 07/Dec/2016  10:10:34
+# Copyright 2010-2014 IAR Systems AB.
+#
+#    Source file  =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\CC1101.c
+#    Command line =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\CC1101.c -e
+#        -Ol --no_cse --no_unroll --no_inline --no_code_motion --no_tbaa
+#        --no_cross_call --debug --code_model small --data_model medium -o
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\Obj\ --dlib_config
+#        "C:\Program Files (x86)\IAR Systems\Embedded Workbench
+#        7.0\stm8\LIB\dlstm8smn.h" -D STM8L15X_MD -lCN
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\List\ --diag_suppress
+#        Pe177,Pe550 -I
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\inc\ -I
+#        F:\share\gitHub\windSensor\Wind-Stm8\Libraries\STM8L15x_StdPeriph_Driver\inc\
+#        --vregs 16
+#    List file    =  F:\share\gitHub\windSensor\Wind-Stm8\Debug\List\CC1101.lst
+#    Object file  =  F:\share\gitHub\windSensor\Wind-Stm8\Debug\Obj\CC1101.o
+#
+###############################################################################
+
+F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\CC1101.c
+      1          /*
+      2          ================================================================================
+      3          Copyright   : Ebyte electronic co.,LTD
+      4          Website     : http://yh-ebyte.taobao.com
+      5                        http://yiheliyong.cn.alibaba.com
+      6          Description : This module contains the low level operations for CC1101
+      7          ================================================================================
+      8          */
+      9          #include "CC1101.H"
+     10          
+     11          //10, 7, 5, 0, -5, -10, -15, -20, dbm output power, 0x12 == -30dbm
+     12          //const 
+     13          //INT8U PaTabel[] = { 0xc0, 0xC8, 0x84, 0x60, 0x68, 0x34, 0x1D, 0x0E};
+
+   \                                 In section .near.data, align 1
+     14          INT8U PaTabel[] = {0xc0 ,0xc0 ,0xc0 ,0xc0 ,0xc0 ,0xc0 ,0xc0 ,0xc0};	 // 10dB
+   \                     PaTabel:
+   \   000000 C0 C0 C0 C0  DC8 192, 192, 192, 192, 192, 192, 192, 192
+   \          C0 C0 C0 C0 
+     15          
+     16          typedef struct S_RF_SETTINGS
+     17          {
+     18          	u8 FSCTRL2;		//自已加的
+     19              u8 FSCTRL1;   // Frequency synthesizer control.
+     20              u8 FSCTRL0;   // Frequency synthesizer control.
+     21              u8 FREQ2;     // Frequency control word, high INT8U.
+     22              u8 FREQ1;     // Frequency control word, middle INT8U.
+     23              u8 FREQ0;     // Frequency control word, low INT8U.
+     24              u8 MDMCFG4;   // Modem configuration.
+     25              u8 MDMCFG3;   // Modem configuration.
+     26              u8 MDMCFG2;   // Modem configuration.
+     27              u8 MDMCFG1;   // Modem configuration.
+     28              u8 MDMCFG0;   // Modem configuration.
+     29              u8 CHANNR;    // Channel number.
+     30              u8 DEVIATN;   // Modem deviation setting (when FSK modulation is enabled).
+     31              u8 FREND1;    // Front end RX configuration.
+     32              u8 FREND0;    // Front end RX configuration.
+     33              u8 MCSM0;     // Main Radio Control State Machine configuration.
+     34              u8 FOCCFG;    // Frequency Offset Compensation Configuration.
+     35              u8 BSCFG;     // Bit synchronization Configuration.
+     36              u8 AGCCTRL2;  // AGC control.
+     37          	u8 AGCCTRL1;  // AGC control.
+     38              u8 AGCCTRL0;  // AGC control.
+     39              u8 FSCAL3;    // Frequency synthesizer calibration.
+     40              u8 FSCAL2;    // Frequency synthesizer calibration.
+     41          	u8 FSCAL1;    // Frequency synthesizer calibration.
+     42              u8 FSCAL0;    // Frequency synthesizer calibration.
+     43              u8 FSTEST;    // Frequency synthesizer calibration control
+     44              u8 TEST2;     // Various test settings.
+     45              u8 TEST1;     // Various test settings.
+     46              u8 TEST0;     // Various test settings.
+     47              u8 IOCFG2;    // GDO2 output pin configuration
+     48              u8 IOCFG0;    // GDO0 output pin configuration
+     49              u8 PKTCTRL1;  // Packet automation control.
+     50              u8 PKTCTRL0;  // Packet automation control.
+     51              u8 ADDR;      // Device address.
+     52              u8 PKTLEN;    // Packet length.
+     53          } RF_SETTINGS;
+
+   \                                 In section .near.rodata, align 1
+     54          const RF_SETTINGS rfSettings = 
+   \                     rfSettings:
+   \   000000 00 08 00 10  DC8 0, 8, 0, 16, 167, 98, 91, 248, 3, 34, 248, 0, 71, 182, 16, 24, 29
+   \          A7 62 5B F8 
+   \   000011 1C C7 00 B2  DC8 28, 199, 0, 178, 234, 42, 0, 17, 89, 129, 53, 9, 11, 6, 4, 69, 0
+   \          EA 2A 00 11 
+   \   000022 0C           DC8 12
+     55          {
+     56          	0x00,
+     57              0x08,   // FSCTRL1   Frequency synthesizer control.
+     58              0x00,   // FSCTRL0   Frequency synthesizer control.
+     59              0x10,   // FREQ2     Frequency control word, high byte.
+     60              0xA7,   // FREQ1     Frequency control word, middle byte.
+     61              0x62,   // FREQ0     Frequency control word, low byte.
+     62              0x5B,   // MDMCFG4   Modem configuration.
+     63              0xF8,   // MDMCFG3   Modem configuration.
+     64              0x03,   // MDMCFG2   Modem configuration.
+     65              0x22,   // MDMCFG1   Modem configuration.
+     66              0xF8,   // MDMCFG0   Modem configuration.
+     67          
+     68              0x00,   // CHANNR    Channel number.
+     69              0x47,   // DEVIATN   Modem deviation setting (when FSK modulation is enabled).
+     70              0xB6,   // FREND1    Front end RX configuration.
+     71              0x10,   // FREND0    Front end RX configuration.
+     72              0x18,   // MCSM0     Main Radio Control State Machine configuration.
+     73              0x1D,   // FOCCFG    Frequency Offset Compensation Configuration.
+     74              0x1C,   // BSCFG     Bit synchronization Configuration.
+     75              0xC7,   // AGCCTRL2  AGC control.
+     76              0x00,   // AGCCTRL1  AGC control.
+     77              0xB2,   // AGCCTRL0  AGC control.
+     78          
+     79              0xEA,   // FSCAL3    Frequency synthesizer calibration.
+     80              0x2A,   // FSCAL2    Frequency synthesizer calibration.
+     81              0x00,   // FSCAL1    Frequency synthesizer calibration.
+     82              0x11,   // FSCAL0    Frequency synthesizer calibration.
+     83              0x59,   // FSTEST    Frequency synthesizer calibration.
+     84              0x81,   // TEST2     Various test settings.
+     85              0x35,   // TEST1     Various test settings.
+     86              0x09,   // TEST0     Various test settings.
+     87              0x0B,   // IOCFG2    GDO2 output pin configuration.
+     88              0x06,   // IOCFG0D   GDO0 output pin configuration. Refer to SmartRF?Studio User Manual for detailed pseudo register explanation.
+     89          
+     90              0x04,   // PKTCTRL1  Packet automation control.
+     91              0x45,   // PKTCTRL0  Packet automation control.
+     92              0x00,   // ADDR      Device address.
+     93              0x0c    // PKTLEN    Packet length.
+     94          };
+     95          
+     96          // Sync word qualifier mode = 30/32 sync word bits detected 
+     97          // CRC autoflush = false 
+     98          // Channel spacing = 199.951172 
+     99          // Data format = Normal mode 
+    100          // Data rate = 2.00224 
+    101          // RX filter BW = 58.035714 
+    102          // PA ramping = false 
+    103          // Preamble count = 4 
+    104          // Whitening = false 
+    105          // Address config = No address check 
+    106          // Carrier frequency = 400.199890 
+    107          // Device address = 0 
+    108          // TX power = 10 
+    109          // Manchester enable = false 
+    110          // CRC enable = true 
+    111          // Deviation = 5.157471 
+    112          // Packet length mode = Variable packet length mode. Packet length configured by the first byte after sync word 
+    113          // Packet length = 255 
+    114          // Modulation format = GFSK 
+    115          // Base frequency = 399.999939 
+    116          // Modulated = true 
+    117          // Channel number = 1 
+    118          // PA table 
+    119          #define PA_TABLE {0xc2,0x00,0x00,0x00,0x00,0x00,0x00,0x00,}
+    120          
+    121          //static const 
+
+   \                                 In section .near.data, align 1
+    122          INT8U CC1101InitData[22][2]= 
+   \                     CC1101InitData:
+   \   000000 02 06 03 47  DC8 2, 6, 3, 71, 8, 5, 10, 1, 11, 6, 13, 15, 14, 98, 15, 118, 16, 246
+   \          08 05 0A 01 
+   \   000012 11 43 12 13  DC8 17, 67, 18, 19, 21, 21, 24, 24, 25, 22, 32, 251, 35, 233, 36, 42
+   \          15 15 18 18 
+   \   000022 25 00 26 1F  DC8 37, 0, 38, 31, 44, 129, 45, 53, 23, 59
+   \          2C 81 2D 35 
+    123          {
+    124            {CC1101_IOCFG0,      0x06},
+    125            {CC1101_FIFOTHR,     0x47},
+    126            {CC1101_PKTCTRL0,    0x05},
+    127            {CC1101_CHANNR,      0x01},
+    128            {CC1101_FSCTRL1,     0x06},
+    129            {CC1101_FREQ2,       0x0F},
+    130            {CC1101_FREQ1,       0x62},
+    131            {CC1101_FREQ0,       0x76},
+    132            {CC1101_MDMCFG4,     0xF6},
+    133            {CC1101_MDMCFG3,     0x43},
+    134            {CC1101_MDMCFG2,     0x13},
+    135            {CC1101_DEVIATN,     0x15},
+    136            {CC1101_MCSM0,       0x18},
+    137            {CC1101_FOCCFG,      0x16},
+    138            {CC1101_WORCTRL,     0xFB},
+    139            {CC1101_FSCAL3,      0xE9},
+    140            {CC1101_FSCAL2,      0x2A},
+    141            {CC1101_FSCAL1,      0x00},
+    142            {CC1101_FSCAL0,      0x1F},
+    143            {CC1101_TEST2,       0x81},
+    144            {CC1101_TEST1,       0x35},
+    145            {CC1101_MCSM1,       0x3B},
+    146          };
+    147          
+    148          
+    149          /*read a byte from the specified register*/
+    150          INT8U CC1101ReadReg( INT8U addr );
+    151          
+    152          /*Read some bytes from the rigisters continously*/
+    153          void CC1101ReadMultiReg( INT8U addr, INT8U *buff, INT8U size );
+    154          
+    155          /*Write a byte to the specified register*/
+    156          void CC1101WriteReg( INT8U addr, INT8U value );
+    157          
+    158          /*Flush the TX buffer of CC1101*/
+    159          void CC1101ClrTXBuff( void );
+    160          
+    161          /*Flush the RX buffer of CC1101*/
+    162          void CC1101ClrRXBuff( void );
+    163          
+    164          /*Get received count of CC1101*/
+    165          INT8U CC1101GetRXCnt( void );
+    166          
+    167          /*Reset the CC1101 device*/
+    168          void CC1101Reset( void );
+    169          
+    170          /*Write some bytes to the specified register*/
+    171          void CC1101WriteMultiReg( INT8U addr, INT8U *buff, INT8U size );
+
+   \                                 In section .near_func.text, align 1
+    172          void WriteRfSetting(void)
+    173          {
+    174          
+    175          	CC1101WriteReg(CCxxx0_FSCTRL0,  rfSettings.FSCTRL2);//自已加的
+   \                     WriteRfSetting:
+   \   000000 C6 ....      LD        A, L:rfSettings
+   \   000003 B7 ..        LD        S:?b0, A
+   \   000005 A6 0C        LD        A, #0xc
+   \   000007 CD ....      CALL      L:CC1101WriteReg
+    176              // Write register settings
+    177              CC1101WriteReg(CCxxx0_FSCTRL1,  rfSettings.FSCTRL1);
+   \   00000A C6 ....      LD        A, L:rfSettings + 1
+   \   00000D B7 ..        LD        S:?b0, A
+   \   00000F A6 0B        LD        A, #0xb
+   \   000011 CD ....      CALL      L:CC1101WriteReg
+    178              CC1101WriteReg(CCxxx0_FSCTRL0,  rfSettings.FSCTRL0);
+   \   000014 C6 ....      LD        A, L:rfSettings + 2
+   \   000017 B7 ..        LD        S:?b0, A
+   \   000019 A6 0C        LD        A, #0xc
+   \   00001B CD ....      CALL      L:CC1101WriteReg
+    179              CC1101WriteReg(CCxxx0_FREQ2,    rfSettings.FREQ2);
+   \   00001E C6 ....      LD        A, L:rfSettings + 3
+   \   000021 B7 ..        LD        S:?b0, A
+   \   000023 A6 0D        LD        A, #0xd
+   \   000025 CD ....      CALL      L:CC1101WriteReg
+    180              CC1101WriteReg(CCxxx0_FREQ1,    rfSettings.FREQ1);
+   \   000028 C6 ....      LD        A, L:rfSettings + 4
+   \   00002B B7 ..        LD        S:?b0, A
+   \   00002D A6 0E        LD        A, #0xe
+   \   00002F CD ....      CALL      L:CC1101WriteReg
+    181              CC1101WriteReg(CCxxx0_FREQ0,    rfSettings.FREQ0);
+   \   000032 C6 ....      LD        A, L:rfSettings + 5
+   \   000035 B7 ..        LD        S:?b0, A
+   \   000037 A6 0F        LD        A, #0xf
+   \   000039 CD ....      CALL      L:CC1101WriteReg
+    182              CC1101WriteReg(CCxxx0_MDMCFG4,  rfSettings.MDMCFG4);
+   \   00003C C6 ....      LD        A, L:rfSettings + 6
+   \   00003F B7 ..        LD        S:?b0, A
+   \   000041 A6 10        LD        A, #0x10
+   \   000043 CD ....      CALL      L:CC1101WriteReg
+    183              CC1101WriteReg(CCxxx0_MDMCFG3,  rfSettings.MDMCFG3);
+   \   000046 C6 ....      LD        A, L:rfSettings + 7
+   \   000049 B7 ..        LD        S:?b0, A
+   \   00004B A6 11        LD        A, #0x11
+   \   00004D CD ....      CALL      L:CC1101WriteReg
+    184              CC1101WriteReg(CCxxx0_MDMCFG2,  rfSettings.MDMCFG2);
+   \   000050 C6 ....      LD        A, L:rfSettings + 8
+   \   000053 B7 ..        LD        S:?b0, A
+   \   000055 A6 12        LD        A, #0x12
+   \   000057 CD ....      CALL      L:CC1101WriteReg
+    185              CC1101WriteReg(CCxxx0_MDMCFG1,  rfSettings.MDMCFG1);
+   \   00005A C6 ....      LD        A, L:rfSettings + 9
+   \   00005D B7 ..        LD        S:?b0, A
+   \   00005F A6 13        LD        A, #0x13
+   \   000061 CD ....      CALL      L:CC1101WriteReg
+    186              CC1101WriteReg(CCxxx0_MDMCFG0,  rfSettings.MDMCFG0);
+   \   000064 C6 ....      LD        A, L:rfSettings + 10
+   \   000067 B7 ..        LD        S:?b0, A
+   \   000069 A6 14        LD        A, #0x14
+   \   00006B CD ....      CALL      L:CC1101WriteReg
+    187              CC1101WriteReg(CCxxx0_CHANNR,   rfSettings.CHANNR);
+   \   00006E C6 ....      LD        A, L:rfSettings + 11
+   \   000071 B7 ..        LD        S:?b0, A
+   \   000073 A6 0A        LD        A, #0xa
+   \   000075 CD ....      CALL      L:CC1101WriteReg
+    188              CC1101WriteReg(CCxxx0_DEVIATN,  rfSettings.DEVIATN);
+   \   000078 C6 ....      LD        A, L:rfSettings + 12
+   \   00007B B7 ..        LD        S:?b0, A
+   \   00007D A6 15        LD        A, #0x15
+   \   00007F CD ....      CALL      L:CC1101WriteReg
+    189              CC1101WriteReg(CCxxx0_FREND1,   rfSettings.FREND1);
+   \   000082 C6 ....      LD        A, L:rfSettings + 13
+   \   000085 B7 ..        LD        S:?b0, A
+   \   000087 A6 21        LD        A, #0x21
+   \   000089 CD ....      CALL      L:CC1101WriteReg
+    190              CC1101WriteReg(CCxxx0_FREND0,   rfSettings.FREND0);
+   \   00008C C6 ....      LD        A, L:rfSettings + 14
+   \   00008F B7 ..        LD        S:?b0, A
+   \   000091 A6 22        LD        A, #0x22
+   \   000093 CD ....      CALL      L:CC1101WriteReg
+    191              CC1101WriteReg(CCxxx0_MCSM0 ,   rfSettings.MCSM0 );
+   \   000096 C6 ....      LD        A, L:rfSettings + 15
+   \   000099 B7 ..        LD        S:?b0, A
+   \   00009B A6 18        LD        A, #0x18
+   \   00009D CD ....      CALL      L:CC1101WriteReg
+    192              CC1101WriteReg(CCxxx0_FOCCFG,   rfSettings.FOCCFG);
+   \   0000A0 C6 ....      LD        A, L:rfSettings + 16
+   \   0000A3 B7 ..        LD        S:?b0, A
+   \   0000A5 A6 19        LD        A, #0x19
+   \   0000A7 CD ....      CALL      L:CC1101WriteReg
+    193              CC1101WriteReg(CCxxx0_BSCFG,    rfSettings.BSCFG);
+   \   0000AA C6 ....      LD        A, L:rfSettings + 17
+   \   0000AD B7 ..        LD        S:?b0, A
+   \   0000AF A6 1A        LD        A, #0x1a
+   \   0000B1 CD ....      CALL      L:CC1101WriteReg
+    194              CC1101WriteReg(CCxxx0_AGCCTRL2, rfSettings.AGCCTRL2);
+   \   0000B4 C6 ....      LD        A, L:rfSettings + 18
+   \   0000B7 B7 ..        LD        S:?b0, A
+   \   0000B9 A6 1B        LD        A, #0x1b
+   \   0000BB CD ....      CALL      L:CC1101WriteReg
+    195          	CC1101WriteReg(CCxxx0_AGCCTRL1, rfSettings.AGCCTRL1);
+   \   0000BE C6 ....      LD        A, L:rfSettings + 19
+   \   0000C1 B7 ..        LD        S:?b0, A
+   \   0000C3 A6 1C        LD        A, #0x1c
+   \   0000C5 CD ....      CALL      L:CC1101WriteReg
+    196              CC1101WriteReg(CCxxx0_AGCCTRL0, rfSettings.AGCCTRL0);
+   \   0000C8 C6 ....      LD        A, L:rfSettings + 20
+   \   0000CB B7 ..        LD        S:?b0, A
+   \   0000CD A6 1D        LD        A, #0x1d
+   \   0000CF CD ....      CALL      L:CC1101WriteReg
+    197              CC1101WriteReg(CCxxx0_FSCAL3,   rfSettings.FSCAL3);
+   \   0000D2 C6 ....      LD        A, L:rfSettings + 21
+   \   0000D5 B7 ..        LD        S:?b0, A
+   \   0000D7 A6 23        LD        A, #0x23
+   \   0000D9 CD ....      CALL      L:CC1101WriteReg
+    198          	CC1101WriteReg(CCxxx0_FSCAL2,   rfSettings.FSCAL2);
+   \   0000DC C6 ....      LD        A, L:rfSettings + 22
+   \   0000DF B7 ..        LD        S:?b0, A
+   \   0000E1 A6 24        LD        A, #0x24
+   \   0000E3 CD ....      CALL      L:CC1101WriteReg
+    199          	CC1101WriteReg(CCxxx0_FSCAL1,   rfSettings.FSCAL1);
+   \   0000E6 C6 ....      LD        A, L:rfSettings + 23
+   \   0000E9 B7 ..        LD        S:?b0, A
+   \   0000EB A6 25        LD        A, #0x25
+   \   0000ED CD ....      CALL      L:CC1101WriteReg
+    200              CC1101WriteReg(CCxxx0_FSCAL0,   rfSettings.FSCAL0);
+   \   0000F0 C6 ....      LD        A, L:rfSettings + 24
+   \   0000F3 B7 ..        LD        S:?b0, A
+   \   0000F5 A6 26        LD        A, #0x26
+   \   0000F7 CD ....      CALL      L:CC1101WriteReg
+    201              CC1101WriteReg(CCxxx0_FSTEST,   rfSettings.FSTEST);
+   \   0000FA C6 ....      LD        A, L:rfSettings + 25
+   \   0000FD B7 ..        LD        S:?b0, A
+   \   0000FF A6 29        LD        A, #0x29
+   \   000101 CD ....      CALL      L:CC1101WriteReg
+    202              CC1101WriteReg(CCxxx0_TEST2,    rfSettings.TEST2);
+   \   000104 C6 ....      LD        A, L:rfSettings + 26
+   \   000107 B7 ..        LD        S:?b0, A
+   \   000109 A6 2C        LD        A, #0x2c
+   \   00010B CD ....      CALL      L:CC1101WriteReg
+    203              CC1101WriteReg(CCxxx0_TEST1,    rfSettings.TEST1);
+   \   00010E C6 ....      LD        A, L:rfSettings + 27
+   \   000111 B7 ..        LD        S:?b0, A
+   \   000113 A6 2D        LD        A, #0x2d
+   \   000115 CD ....      CALL      L:CC1101WriteReg
+    204              CC1101WriteReg(CCxxx0_TEST0,    rfSettings.TEST0);
+   \   000118 C6 ....      LD        A, L:rfSettings + 28
+   \   00011B B7 ..        LD        S:?b0, A
+   \   00011D A6 2E        LD        A, #0x2e
+   \   00011F CD ....      CALL      L:CC1101WriteReg
+    205              CC1101WriteReg(CCxxx0_IOCFG2,   rfSettings.IOCFG2);
+   \   000122 C6 ....      LD        A, L:rfSettings + 29
+   \   000125 B7 ..        LD        S:?b0, A
+   \   000127 4F           CLR       A
+   \   000128 CD ....      CALL      L:CC1101WriteReg
+    206              CC1101WriteReg(CCxxx0_IOCFG0,   rfSettings.IOCFG0);    
+   \   00012B C6 ....      LD        A, L:rfSettings + 30
+   \   00012E B7 ..        LD        S:?b0, A
+   \   000130 A6 02        LD        A, #0x2
+   \   000132 CD ....      CALL      L:CC1101WriteReg
+    207              CC1101WriteReg(CCxxx0_PKTCTRL1, rfSettings.PKTCTRL1);
+   \   000135 C6 ....      LD        A, L:rfSettings + 31
+   \   000138 B7 ..        LD        S:?b0, A
+   \   00013A A6 07        LD        A, #0x7
+   \   00013C CD ....      CALL      L:CC1101WriteReg
+    208              CC1101WriteReg(CCxxx0_PKTCTRL0, rfSettings.PKTCTRL0);
+   \   00013F C6 ....      LD        A, L:rfSettings + 32
+   \   000142 B7 ..        LD        S:?b0, A
+   \   000144 A6 08        LD        A, #0x8
+   \   000146 CD ....      CALL      L:CC1101WriteReg
+    209              CC1101WriteReg(CCxxx0_ADDR,     rfSettings.ADDR);
+   \   000149 C6 ....      LD        A, L:rfSettings + 33
+   \   00014C B7 ..        LD        S:?b0, A
+   \   00014E A6 09        LD        A, #0x9
+   \   000150 CD ....      CALL      L:CC1101WriteReg
+    210              CC1101WriteReg(CCxxx0_PKTLEN,   rfSettings.PKTLEN);
+   \   000153 C6 ....      LD        A, L:rfSettings + 34
+   \   000156 B7 ..        LD        S:?b0, A
+   \   000158 A6 06        LD        A, #0x6
+   \   00015A CC ....      JP        L:CC1101WriteReg
+    211          };
+    212          
+    213          /*
+    214          ================================================================================
+    215          Function : CC1101WORInit( )
+    216              Initialize the WOR function of CC1101
+    217          INPUT    : None
+    218          OUTPUT   : None
+    219          ================================================================================
+    220          */
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    221          void  CC1101WORInit( void )
+    222          {
+    223          
+    224              CC1101WriteReg(CC1101_MCSM0,0x18);
+   \                     CC1101WORInit:
+   \   000000 35 18 ....   MOV       S:?b0, #0x18
+   \   000004 A6 18        LD        A, #0x18
+   \   000006 CD ....      CALL      L:CC1101WriteReg
+    225              CC1101WriteReg(CC1101_WORCTRL,0x78); //Wake On Radio Control
+   \   000009 35 78 ....   MOV       S:?b0, #0x78
+   \   00000D A6 20        LD        A, #0x20
+   \   00000F CD ....      CALL      L:CC1101WriteReg
+    226              CC1101WriteReg(CC1101_MCSM2,0x00);
+   \   000012 3F ..        CLR       S:?b0
+   \   000014 A6 16        LD        A, #0x16
+   \   000016 CD ....      CALL      L:CC1101WriteReg
+    227              CC1101WriteReg(CC1101_WOREVT1,0x8C);
+   \   000019 35 8C ....   MOV       S:?b0, #0x8c
+   \   00001D A6 1E        LD        A, #0x1e
+   \   00001F CD ....      CALL      L:CC1101WriteReg
+    228              CC1101WriteReg(CC1101_WOREVT0,0xA0);
+   \   000022 35 A0 ....   MOV       S:?b0, #0xa0
+   \   000026 A6 1F        LD        A, #0x1f
+   \   000028 CD ....      CALL      L:CC1101WriteReg
+    229          	
+    230          	CC1101WriteCmd( CC1101_SWORRST );
+   \   00002B A6 3C        LD        A, #0x3c
+   \   00002D CC ....      JP        L:CC1101WriteCmd
+    231          }
+    232          /*
+    233          ================================================================================
+    234          Function : CC1101ReadReg( )
+    235              read a byte from the specified register
+    236          INPUT    : addr, The address of the register
+    237          OUTPUT   : the byte read from the rigister
+    238          ================================================================================
+    239          */
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    240          INT8U CC1101ReadReg( INT8U addr )
+    241          {
+   \                     CC1101ReadReg:
+   \   000000 3B ....      PUSH      S:?b8
+   \   000003 B7 ..        LD        S:?b8, A
+    242              INT8U i;
+    243              CC_CSN_LOW( );
+   \   000005 A6 10        LD        A, #0x10
+   \   000007 AE 5005      LDW       X, #0x5005
+   \   00000A CD ....      CALL      L:GPIO_ResetBits
+   \                     ??CC1101ReadReg_0:
+   \   00000D A6 80        LD        A, #0x80
+   \   00000F AE 5005      LDW       X, #0x5005
+   \   000012 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000015 A1 00        CP        A, #0x0
+   \   000017 26 F4        JRNE      L:??CC1101ReadReg_0
+    244              SPI_ExchangeByte( addr | READ_SINGLE);
+   \   000019 B6 ..        LD        A, S:?b8
+   \   00001B AA 80        OR        A, #0x80
+   \   00001D CD ....      CALL      L:SPI_ExchangeByte
+    245              i = SPI_ExchangeByte( 0xFF );
+   \   000020 A6 FF        LD        A, #0xff
+   \   000022 CD ....      CALL      L:SPI_ExchangeByte
+   \   000025 B7 ..        LD        S:?b8, A
+    246              CC_CSN_HIGH( );
+   \   000027 A6 10        LD        A, #0x10
+   \   000029 AE 5005      LDW       X, #0x5005
+   \   00002C CD ....      CALL      L:GPIO_SetBits
+    247              return i;
+   \   00002F B6 ..        LD        A, S:?b8
+   \   000031 32 ....      POP       S:?b8
+   \   000034 81           RET
+    248          }
+    249          /*
+    250          ================================================================================
+    251          Function : CC1101ReadMultiReg( )
+    252              Read some bytes from the rigisters continously
+    253          INPUT    : addr, The address of the register
+    254                     buff, The buffer stores the data
+    255                     size, How many bytes should be read
+    256          OUTPUT   : None
+    257          ================================================================================
+    258          */
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    259          void CC1101ReadMultiReg( INT8U addr, INT8U *buff, INT8U size )
+    260          {
+   \                     CC1101ReadMultiReg:
+   \   000000 CD ....      CALL      L:?push_l2
+   \   000003 CD ....      CALL      L:?push_w6
+   \   000006 B7 ..        LD        S:?b10, A
+   \   000008 BF ..        LDW       S:?w4, X
+   \   00000A 45 .. ..     MOV       S:?b13, S:?b0
+    261              INT8U i, j;
+    262              CC_CSN_LOW( );
+   \   00000D A6 10        LD        A, #0x10
+   \   00000F AE 5005      LDW       X, #0x5005
+   \   000012 CD ....      CALL      L:GPIO_ResetBits
+   \                     ??CC1101ReadMultiReg_0:
+   \   000015 A6 80        LD        A, #0x80
+   \   000017 AE 5005      LDW       X, #0x5005
+   \   00001A CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   00001D A1 00        CP        A, #0x0
+   \   00001F 26 F4        JRNE      L:??CC1101ReadMultiReg_0
+    263              SPI_ExchangeByte( addr | READ_BURST);
+   \   000021 B6 ..        LD        A, S:?b10
+   \   000023 AA C0        OR        A, #0xc0
+   \   000025 CD ....      CALL      L:SPI_ExchangeByte
+    264              for( i = 0; i < size; i ++ )
+   \   000028 3F ..        CLR       S:?b12
+   \   00002A 20 1F        JRA       L:??CC1101ReadMultiReg_1
+    265              {
+    266                  for( j = 0; j < 20; j ++ );
+   \                     ??CC1101ReadMultiReg_2:
+   \   00002C AB 01        ADD       A, #0x1
+   \                     ??CC1101ReadMultiReg_3:
+   \   00002E A1 14        CP        A, #0x14
+   \   000030 25 FA        JRC       L:??CC1101ReadMultiReg_2
+    267                  *( buff + i ) = SPI_ExchangeByte( 0xFF );
+   \   000032 5F           CLRW      X
+   \   000033 41           EXG       A, XL
+   \   000034 B6 ..        LD        A, S:?b12
+   \   000036 41           EXG       A, XL
+   \   000037 72BB ....    ADDW      X, S:?w4
+   \   00003B BF ..        LDW       S:?w5, X
+   \   00003D A6 FF        LD        A, #0xff
+   \   00003F CD ....      CALL      L:SPI_ExchangeByte
+   \   000042 92C7 ..      LD        [S:?w5.w], A
+   \   000045 B6 ..        LD        A, S:?b12
+   \   000047 AB 01        ADD       A, #0x1
+   \   000049 B7 ..        LD        S:?b12, A
+   \                     ??CC1101ReadMultiReg_1:
+   \   00004B B6 ..        LD        A, S:?b12
+   \   00004D B1 ..        CP        A, S:?b13
+   \   00004F 24 03        JRNC      L:??CC1101ReadMultiReg_4
+   \   000051 4F           CLR       A
+   \   000052 20 DA        JRA       L:??CC1101ReadMultiReg_3
+    268              }
+    269              CC_CSN_HIGH( );
+   \                     ??CC1101ReadMultiReg_4:
+   \   000054 A6 10        LD        A, #0x10
+   \   000056 AE 5005      LDW       X, #0x5005
+   \   000059 CD ....      CALL      L:GPIO_SetBits
+    270          }
+   \   00005C CC ....      JP        L:?epilogue_l2_w6
+    271          /*
+    272          ================================================================================
+    273          Function : CC1101ReadStatus( )
+    274              Read a status register
+    275          INPUT    : addr, The address of the register
+    276          OUTPUT   : the value read from the status register
+    277          ================================================================================
+    278          */
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    279          INT8U CC1101ReadStatus( INT8U addr )
+    280          {
+   \                     CC1101ReadStatus:
+   \   000000 3B ....      PUSH      S:?b8
+   \   000003 B7 ..        LD        S:?b8, A
+    281              INT8U i;
+    282              CC_CSN_LOW( );
+   \   000005 A6 10        LD        A, #0x10
+   \   000007 AE 5005      LDW       X, #0x5005
+   \   00000A CD ....      CALL      L:GPIO_ResetBits
+   \                     ??CC1101ReadStatus_0:
+   \   00000D A6 80        LD        A, #0x80
+   \   00000F AE 5005      LDW       X, #0x5005
+   \   000012 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000015 A1 00        CP        A, #0x0
+   \   000017 26 F4        JRNE      L:??CC1101ReadStatus_0
+    283              SPI_ExchangeByte( addr | READ_BURST);
+   \   000019 B6 ..        LD        A, S:?b8
+   \   00001B AA C0        OR        A, #0xc0
+   \   00001D CD ....      CALL      L:SPI_ExchangeByte
+    284              i = SPI_ExchangeByte( 0xFF );
+   \   000020 A6 FF        LD        A, #0xff
+   \   000022 CD ....      CALL      L:SPI_ExchangeByte
+   \   000025 B7 ..        LD        S:?b8, A
+    285              CC_CSN_HIGH( );
+   \   000027 A6 10        LD        A, #0x10
+   \   000029 AE 5005      LDW       X, #0x5005
+   \   00002C CD ....      CALL      L:GPIO_SetBits
+    286              return i;
+   \   00002F B6 ..        LD        A, S:?b8
+   \   000031 32 ....      POP       S:?b8
+   \   000034 81           RET
+    287          }
+    288          /*
+    289          ================================================================================
+    290          Function : CC1101SetTRMode( )
+    291              Set the device as TX mode or RX mode
+    292          INPUT    : mode selection
+    293          OUTPUT   : None
+    294          ================================================================================
+    295          */
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    296          void CC1101SetTRMode( TRMODE mode )
+    297          {
+    298              if( mode == TX_MODE )
+   \                     CC1101SetTRMode:
+   \   000000 4D           TNZ       A
+   \   000001 26 0E        JRNE      L:??CC1101SetTRMode_0
+    299              {
+    300                  CC1101WriteReg(CC1101_IOCFG0,0x46);
+   \   000003 35 46 ....   MOV       S:?b0, #0x46
+   \   000007 A6 02        LD        A, #0x2
+   \   000009 CD ....      CALL      L:CC1101WriteReg
+    301                  CC1101WriteCmd( CC1101_STX );
+   \   00000C A6 35        LD        A, #0x35
+   \   00000E CC ....      JP        L:CC1101WriteCmd
+    302              }
+    303              else if( mode == RX_MODE )
+   \                     ??CC1101SetTRMode_0:
+   \   000011 A1 01        CP        A, #0x1
+   \   000013 26 0E        JRNE      L:??CC1101SetTRMode_1
+    304              {
+    305                  CC1101WriteReg(CC1101_IOCFG0,0x46);
+   \   000015 35 46 ....   MOV       S:?b0, #0x46
+   \   000019 A6 02        LD        A, #0x2
+   \   00001B CD ....      CALL      L:CC1101WriteReg
+    306                  CC1101WriteCmd( CC1101_SRX );
+   \   00001E A6 34        LD        A, #0x34
+   \   000020 CD ....      CALL      L:CC1101WriteCmd
+    307              }
+    308          }
+   \                     ??CC1101SetTRMode_1:
+   \   000023 81           RET
+    309          /*
+    310          ================================================================================
+    311          Function : CC1101WriteReg( )
+    312              Write a byte to the specified register
+    313          INPUT    : addr, The address of the register
+    314                     value, the byte you want to write
+    315          OUTPUT   : None
+    316          ================================================================================
+    317          */
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    318          void CC1101WriteReg( INT8U addr, INT8U value )
+    319          {
+   \                     CC1101WriteReg:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 B7 ..        LD        S:?b8, A
+   \   000005 45 .. ..     MOV       S:?b9, S:?b0
+    320              CC_CSN_LOW( );
+   \   000008 A6 10        LD        A, #0x10
+   \   00000A AE 5005      LDW       X, #0x5005
+   \   00000D CD ....      CALL      L:GPIO_ResetBits
+   \                     ??CC1101WriteReg_0:
+   \   000010 A6 80        LD        A, #0x80
+   \   000012 AE 5005      LDW       X, #0x5005
+   \   000015 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000018 A1 00        CP        A, #0x0
+   \   00001A 26 F4        JRNE      L:??CC1101WriteReg_0
+    321              SPI_ExchangeByte( addr );
+   \   00001C B6 ..        LD        A, S:?b8
+   \   00001E CD ....      CALL      L:SPI_ExchangeByte
+    322              SPI_ExchangeByte( value );
+   \   000021 B6 ..        LD        A, S:?b9
+   \   000023 CD ....      CALL      L:SPI_ExchangeByte
+    323              CC_CSN_HIGH( );
+   \   000026 A6 10        LD        A, #0x10
+   \   000028 AE 5005      LDW       X, #0x5005
+   \   00002B CD ....      CALL      L:GPIO_SetBits
+    324          }
+   \   00002E CC ....      JP        L:?epilogue_w4
+    325          /*
+    326          ================================================================================
+    327          Function : CC1101WriteMultiReg( )
+    328              Write some bytes to the specified register
+    329          INPUT    : addr, The address of the register
+    330                     buff, a buffer stores the values
+    331                     size, How many byte should be written
+    332          OUTPUT   : None
+    333          ================================================================================
+    334          */
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    335          void CC1101WriteMultiReg( INT8U addr, INT8U *buff, INT8U size )
+    336          {
+   \                     CC1101WriteMultiReg:
+   \   000000 CD ....      CALL      L:?push_l2
+   \   000003 B7 ..        LD        S:?b10, A
+   \   000005 BF ..        LDW       S:?w4, X
+   \   000007 45 .. ..     MOV       S:?b11, S:?b0
+    337              INT8U i;
+    338              CC_CSN_LOW( );
+   \   00000A A6 10        LD        A, #0x10
+   \   00000C AE 5005      LDW       X, #0x5005
+   \   00000F CD ....      CALL      L:GPIO_ResetBits
+   \                     ??CC1101WriteMultiReg_0:
+   \   000012 A6 80        LD        A, #0x80
+   \   000014 AE 5005      LDW       X, #0x5005
+   \   000017 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   00001A A1 00        CP        A, #0x0
+   \   00001C 26 F4        JRNE      L:??CC1101WriteMultiReg_0
+    339              SPI_ExchangeByte( addr | WRITE_BURST );
+   \   00001E B6 ..        LD        A, S:?b10
+   \   000020 AA 40        OR        A, #0x40
+   \   000022 CD ....      CALL      L:SPI_ExchangeByte
+    340              for( i = 0; i < size; i ++ )
+   \   000025 3F ..        CLR       S:?b10
+   \   000027 20 13        JRA       L:??CC1101WriteMultiReg_1
+    341              {
+    342                  SPI_ExchangeByte( *( buff + i ) );
+   \                     ??CC1101WriteMultiReg_2:
+   \   000029 5F           CLRW      X
+   \   00002A 41           EXG       A, XL
+   \   00002B B6 ..        LD        A, S:?b10
+   \   00002D 41           EXG       A, XL
+   \   00002E 72BB ....    ADDW      X, S:?w4
+   \   000032 F6           LD        A, (X)
+   \   000033 CD ....      CALL      L:SPI_ExchangeByte
+    343              }
+   \   000036 B6 ..        LD        A, S:?b10
+   \   000038 AB 01        ADD       A, #0x1
+   \   00003A B7 ..        LD        S:?b10, A
+   \                     ??CC1101WriteMultiReg_1:
+   \   00003C B6 ..        LD        A, S:?b10
+   \   00003E B1 ..        CP        A, S:?b11
+   \   000040 25 E7        JRC       L:??CC1101WriteMultiReg_2
+    344              CC_CSN_HIGH( );
+   \   000042 A6 10        LD        A, #0x10
+   \   000044 AE 5005      LDW       X, #0x5005
+   \   000047 CD ....      CALL      L:GPIO_SetBits
+    345          }
+   \   00004A CC ....      JP        L:?epilogue_l2
+    346          /*
+    347          ================================================================================
+    348          Function : CC1101WriteCmd( )
+    349              Write a command byte to the device
+    350          INPUT    : command, the byte you want to write
+    351          OUTPUT   : None
+    352          ================================================================================
+    353          */
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    354          void CC1101WriteCmd( INT8U command )
+    355          {
+   \                     CC1101WriteCmd:
+   \   000000 3B ....      PUSH      S:?b8
+   \   000003 B7 ..        LD        S:?b8, A
+    356              CC_CSN_LOW( );
+   \   000005 A6 10        LD        A, #0x10
+   \   000007 AE 5005      LDW       X, #0x5005
+   \   00000A CD ....      CALL      L:GPIO_ResetBits
+   \                     ??CC1101WriteCmd_0:
+   \   00000D A6 80        LD        A, #0x80
+   \   00000F AE 5005      LDW       X, #0x5005
+   \   000012 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000015 A1 00        CP        A, #0x0
+   \   000017 26 F4        JRNE      L:??CC1101WriteCmd_0
+    357              SPI_ExchangeByte( command );
+   \   000019 B6 ..        LD        A, S:?b8
+   \   00001B CD ....      CALL      L:SPI_ExchangeByte
+    358              CC_CSN_HIGH( );
+   \   00001E A6 10        LD        A, #0x10
+   \   000020 AE 5005      LDW       X, #0x5005
+   \   000023 CD ....      CALL      L:GPIO_SetBits
+    359          }
+   \   000026 32 ....      POP       S:?b8
+   \   000029 81           RET
+    360          /*
+    361          ================================================================================
+    362          Function : CC1101Reset( )
+    363              Reset the CC1101 device
+    364          INPUT    : None
+    365          OUTPUT   : None
+    366          ================================================================================
+    367          */
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    368          void CC1101Reset( void )
+    369          {
+    370              INT8U x;
+    371          
+    372              CC_CSN_HIGH( );
+   \                     CC1101Reset:
+   \   000000 A6 10        LD        A, #0x10
+   \   000002 AE 5005      LDW       X, #0x5005
+   \   000005 CD ....      CALL      L:GPIO_SetBits
+    373              CC_CSN_LOW( );
+   \   000008 A6 10        LD        A, #0x10
+   \   00000A AE 5005      LDW       X, #0x5005
+   \   00000D CD ....      CALL      L:GPIO_ResetBits
+   \                     ??CC1101Reset_0:
+   \   000010 A6 80        LD        A, #0x80
+   \   000012 AE 5005      LDW       X, #0x5005
+   \   000015 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000018 A1 00        CP        A, #0x0
+   \   00001A 26 F4        JRNE      L:??CC1101Reset_0
+    374              CC_CSN_HIGH( );
+   \   00001C A6 10        LD        A, #0x10
+   \   00001E AE 5005      LDW       X, #0x5005
+   \   000021 CD ....      CALL      L:GPIO_SetBits
+    375              for( x = 0; x < 100; x ++ );
+   \   000024 4F           CLR       A
+   \   000025 20 02        JRA       L:??CC1101Reset_1
+   \                     ??CC1101Reset_2:
+   \   000027 AB 01        ADD       A, #0x1
+   \                     ??CC1101Reset_1:
+   \   000029 A1 64        CP        A, #0x64
+   \   00002B 25 FA        JRC       L:??CC1101Reset_2
+    376              CC1101WriteCmd( CC1101_SRES );
+   \   00002D A6 30        LD        A, #0x30
+   \   00002F              REQUIRE CC1101WriteCmd
+   \   00002F              ;               // Fall through to label CC1101WriteCmd
+    377          }
+    378          /*
+    379          ================================================================================
+    380          Function : CC1101SetIdle( )
+    381              Set the CC1101 into IDLE mode
+    382          INPUT    : None
+    383          OUTPUT   : None
+    384          ================================================================================
+    385          */
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    386          void CC1101SetIdle( void )
+    387          {
+    388              CC1101WriteCmd(CC1101_SIDLE);
+   \                     CC1101SetIdle:
+   \   000000 A6 36        LD        A, #0x36
+   \   000002 CC ....      JP        L:CC1101WriteCmd
+    389          }
+    390          /*
+    391          ================================================================================
+    392          Function : CC1101ClrTXBuff( )
+    393              Flush the TX buffer of CC1101
+    394          INPUT    : None
+    395          OUTPUT   : None
+    396          ================================================================================
+    397          */
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    398          void CC1101ClrTXBuff( void )
+    399          {
+    400              CC1101SetIdle();//MUST BE IDLE MODE
+   \                     CC1101ClrTXBuff:
+   \   000000 CD ....      CALL      L:CC1101SetIdle
+    401              CC1101WriteCmd( CC1101_SFTX );
+   \   000003 A6 3B        LD        A, #0x3b
+   \   000005 CC ....      JP        L:CC1101WriteCmd
+    402          }
+    403          /*
+    404          ================================================================================
+    405          Function : CC1101ClrRXBuff( )
+    406              Flush the RX buffer of CC1101
+    407          INPUT    : None
+    408          OUTPUT   : None
+    409          ================================================================================
+    410          */
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    411          void CC1101ClrRXBuff( void )
+    412          {
+    413              CC1101SetIdle();//MUST BE IDLE MODE
+   \                     CC1101ClrRXBuff:
+   \   000000 CD ....      CALL      L:CC1101SetIdle
+    414              CC1101WriteCmd( CC1101_SFRX );
+   \   000003 A6 3A        LD        A, #0x3a
+   \   000005 CC ....      JP        L:CC1101WriteCmd
+    415          }
+    416          /*
+    417          ================================================================================
+    418          Function : CC1101SendPacket( )
+    419              Send a packet
+    420          INPUT    : txbuffer, The buffer stores data to be sent
+    421                     size, How many bytes should be sent
+    422                     mode, Broadcast or address check packet
+    423          OUTPUT   : None
+    424          ================================================================================
+    425          */
+
+   \                                 In section .near_func.text, align 1
+    426          void CC1101SendPacket( INT8U *txbuffer, INT8U size, TX_DATA_MODE mode )
+    427          {
+   \                     CC1101SendPacket:
+   \   000000 CD ....      CALL      L:?push_l2
+   \   000003 BF ..        LDW       S:?w4, X
+   \   000005 B7 ..        LD        S:?b11, A
+   \   000007 B6 ..        LD        A, S:?b0
+    428              INT8U address;
+    429              if( mode == BROADCAST )            
+   \   000009 4D           TNZ       A
+   \   00000A 26 04        JRNE      L:??CC1101SendPacket_0
+    430          		{ address = 0; }
+   \   00000C 3F ..        CLR       S:?b10
+   \   00000E 20 0B        JRA       L:??CC1101SendPacket_1
+    431              else if( mode == ADDRESS_CHECK )  
+   \                     ??CC1101SendPacket_0:
+   \   000010 A1 01        CP        A, #0x1
+   \   000012 26 07        JRNE      L:??CC1101SendPacket_1
+    432          		{ address = CC1101ReadReg( CC1101_ADDR ); }
+   \   000014 A6 09        LD        A, #0x9
+   \   000016 CD ....      CALL      L:CC1101ReadReg
+   \   000019 B7 ..        LD        S:?b10, A
+    433          
+    434              CC1101ClrTXBuff( );
+   \                     ??CC1101SendPacket_1:
+   \   00001B CD ....      CALL      L:CC1101ClrTXBuff
+    435              
+    436              if( ( CC1101ReadReg( CC1101_PKTCTRL1 ) & ~0x03 ) != 0 )
+   \   00001E A6 07        LD        A, #0x7
+   \   000020 CD ....      CALL      L:CC1101ReadReg
+   \   000023 A4 FC        AND       A, #0xfc
+   \   000025 A1 00        CP        A, #0x0
+   \   000027 27 15        JREQ      L:??CC1101SendPacket_2
+    437              {
+    438                  CC1101WriteReg( CC1101_TXFIFO, size + 1 );
+   \   000029 B6 ..        LD        A, S:?b11
+   \   00002B AB 01        ADD       A, #0x1
+   \   00002D B7 ..        LD        S:?b0, A
+   \   00002F A6 3F        LD        A, #0x3f
+   \   000031 CD ....      CALL      L:CC1101WriteReg
+    439                  CC1101WriteReg( CC1101_TXFIFO, address );
+   \   000034 45 .. ..     MOV       S:?b0, S:?b10
+   \   000037 A6 3F        LD        A, #0x3f
+   \   000039 CD ....      CALL      L:CC1101WriteReg
+   \   00003C 20 08        JRA       L:??CC1101SendPacket_3
+    440              }
+    441              else
+    442              {
+    443                  CC1101WriteReg( CC1101_TXFIFO, size );
+   \                     ??CC1101SendPacket_2:
+   \   00003E 45 .. ..     MOV       S:?b0, S:?b11
+   \   000041 A6 3F        LD        A, #0x3f
+   \   000043 CD ....      CALL      L:CC1101WriteReg
+    444              }
+    445          
+    446              CC1101WriteMultiReg( CC1101_TXFIFO, txbuffer, size );
+   \                     ??CC1101SendPacket_3:
+   \   000046 45 .. ..     MOV       S:?b0, S:?b11
+   \   000049 BE ..        LDW       X, S:?w4
+   \   00004B A6 3F        LD        A, #0x3f
+   \   00004D CD ....      CALL      L:CC1101WriteMultiReg
+    447              CC1101SetTRMode( TX_MODE );
+   \   000050 4F           CLR       A
+   \   000051 CD ....      CALL      L:CC1101SetTRMode
+    448              while( GPIO_ReadInputDataBit( GPIOB, GPIO_Pin_2 ) != 0 );
+   \                     ??CC1101SendPacket_4:
+   \   000054 A6 04        LD        A, #0x4
+   \   000056 AE 5005      LDW       X, #0x5005
+   \   000059 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   00005C A1 00        CP        A, #0x0
+   \   00005E 26 F4        JRNE      L:??CC1101SendPacket_4
+    449              while( GPIO_ReadInputDataBit( GPIOB, GPIO_Pin_2 ) == 0 );
+   \                     ??CC1101SendPacket_5:
+   \   000060 A6 04        LD        A, #0x4
+   \   000062 AE 5005      LDW       X, #0x5005
+   \   000065 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000068 A1 00        CP        A, #0x0
+   \   00006A 27 F4        JREQ      L:??CC1101SendPacket_5
+    450          
+    451              CC1101ClrTXBuff( );
+   \   00006C CD ....      CALL      L:CC1101ClrTXBuff
+    452          }
+   \   00006F CC ....      JP        L:?epilogue_l2
+    453          /*
+    454          ================================================================================
+    455          Function : CC1101GetRXCnt( )
+    456              Get received count of CC1101
+    457          INPUT    : None
+    458          OUTPUT   : How many bytes hae been received
+    459          ================================================================================
+    460          */
+
+   \                                 In section .near_func.text, align 1
+    461          INT8U CC1101GetRXCnt( void )
+    462          {
+    463              return ( CC1101ReadStatus( CC1101_RXBYTES )  & BYTES_IN_RXFIFO );
+   \                     CC1101GetRXCnt:
+   \   000000 A6 3B        LD        A, #0x3b
+   \   000002 CD ....      CALL      L:CC1101ReadStatus
+   \   000005 A4 7F        AND       A, #0x7f
+   \   000007 81           RET
+    464          }
+    465          /*
+    466          ================================================================================
+    467          Function : CC1101SetAddress( )
+    468              Set the address and address mode of the CC1101
+    469          INPUT    : address, The address byte
+    470                     AddressMode, the address check mode
+    471          OUTPUT   : None
+    472          ================================================================================
+    473          */
+
+   \                                 In section .near_func.text, align 1
+    474          void CC1101SetAddress( INT8U address, ADDR_MODE AddressMode)
+    475          {
+   \                     CC1101SetAddress:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 3B ....      PUSH      S:?b10
+   \   000006 B7 ..        LD        S:?b8, A
+   \   000008 45 .. ..     MOV       S:?b9, S:?b0
+    476              INT8U btmp = CC1101ReadReg( CC1101_PKTCTRL1 ) & ~0x03;
+   \   00000B A6 07        LD        A, #0x7
+   \   00000D CD ....      CALL      L:CC1101ReadReg
+   \   000010 A4 FC        AND       A, #0xfc
+   \   000012 B7 ..        LD        S:?b10, A
+    477              CC1101WriteReg(CC1101_ADDR, address);
+   \   000014 45 .. ..     MOV       S:?b0, S:?b8
+   \   000017 A6 09        LD        A, #0x9
+   \   000019 CD ....      CALL      L:CC1101WriteReg
+    478              if     ( AddressMode == BROAD_ALL )     {}
+   \   00001C 3D ..        TNZ       S:?b9
+   \   00001E 27 28        JREQ      L:??CC1101SetAddress_0
+    479              else if( AddressMode == BROAD_NO  )     { btmp |= 0x01; }
+   \   000020 B6 ..        LD        A, S:?b9
+   \   000022 A1 01        CP        A, #0x1
+   \   000024 26 08        JRNE      L:??CC1101SetAddress_1
+   \   000026 B6 ..        LD        A, S:?b10
+   \   000028 AA 01        OR        A, #0x1
+   \   00002A B7 ..        LD        S:?b10, A
+   \   00002C 20 1A        JRA       L:??CC1101SetAddress_0
+    480              else if( AddressMode == BROAD_0   )     { btmp |= 0x02; }
+   \                     ??CC1101SetAddress_1:
+   \   00002E B6 ..        LD        A, S:?b9
+   \   000030 A1 02        CP        A, #0x2
+   \   000032 26 08        JRNE      L:??CC1101SetAddress_2
+   \   000034 B6 ..        LD        A, S:?b10
+   \   000036 AA 02        OR        A, #0x2
+   \   000038 B7 ..        LD        S:?b10, A
+   \   00003A 20 0C        JRA       L:??CC1101SetAddress_0
+    481              else if( AddressMode == BROAD_0AND255 ) { btmp |= 0x03; }   
+   \                     ??CC1101SetAddress_2:
+   \   00003C B6 ..        LD        A, S:?b9
+   \   00003E A1 03        CP        A, #0x3
+   \   000040 26 06        JRNE      L:??CC1101SetAddress_0
+   \   000042 B6 ..        LD        A, S:?b10
+   \   000044 AA 03        OR        A, #0x3
+   \   000046 B7 ..        LD        S:?b10, A
+    482          }
+   \                     ??CC1101SetAddress_0:
+   \   000048 32 ....      POP       S:?b10
+   \   00004B CC ....      JP        L:?epilogue_w4
+    483          /*
+    484          ================================================================================
+    485          Function : CC1101SetSYNC( )
+    486              Set the SYNC bytes of the CC1101
+    487          INPUT    : sync, 16bit sync 
+    488          OUTPUT   : None
+    489          ================================================================================
+    490          */
+
+   \                                 In section .near_func.text, align 1
+    491          void CC1101SetSYNC( INT16U sync )
+    492          {
+   \                     CC1101SetSYNC:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 BF ..        LDW       S:?w4, X
+    493              CC1101WriteReg(CC1101_SYNC1, 0xFF & ( sync>>8 ) );
+   \   000005 BE ..        LDW       X, S:?w4
+   \   000007 4F           CLR       A
+   \   000008 01           RRWA      X, A
+   \   000009 41           EXG       A, XL
+   \   00000A B7 ..        LD        S:?b0, A
+   \   00000C 41           EXG       A, XL
+   \   00000D A6 04        LD        A, #0x4
+   \   00000F CD ....      CALL      L:CC1101WriteReg
+    494              CC1101WriteReg(CC1101_SYNC0, 0xFF & sync ); 
+   \   000012 45 .. ..     MOV       S:?b0, S:?b9
+   \   000015 A6 05        LD        A, #0x5
+   \   000017 CD ....      CALL      L:CC1101WriteReg
+    495          }
+   \   00001A CC ....      JP        L:?epilogue_w4
+    496          /*
+    497          ================================================================================
+    498          Function : CC1101RecPacket( )
+    499              Receive a packet
+    500          INPUT    : rxBuffer, A buffer store the received data
+    501          OUTPUT   : 1:received count, 0:no data
+    502          ================================================================================
+    503          */
+
+   \                                 In section .near_func.text, align 1
+    504          INT8U CC1101RecPacket( INT8U *rxBuffer )
+    505          {
+   \                     CC1101RecPacket:
+   \   000000 CD ....      CALL      L:?push_l2
+   \   000003 52 02        SUB       SP, #0x2
+   \   000005 BF ..        LDW       S:?w4, X
+    506              INT8U status[2];
+    507              INT8U pktLen;
+    508              INT16U x , j = 0;
+   \   000007 3F ..        CLR       S:?b11
+   \   000009 3F ..        CLR       S:?b10
+    509          
+    510              if ( CC1101GetRXCnt( ) != 0 )
+   \   00000B CD ....      CALL      L:CC1101GetRXCnt
+   \   00000E A1 00        CP        A, #0x0
+   \   000010 27 4F        JREQ      L:??CC1101RecPacket_0
+    511              {
+    512                  pktLen = CC1101ReadReg(CC1101_RXFIFO);           // Read length byte
+   \   000012 A6 3F        LD        A, #0x3f
+   \   000014 CD ....      CALL      L:CC1101ReadReg
+   \   000017 B7 ..        LD        S:?b10, A
+    513                  if( ( CC1101ReadReg( CC1101_PKTCTRL1 ) & ~0x03 ) != 0 )
+   \   000019 A6 07        LD        A, #0x7
+   \   00001B CD ....      CALL      L:CC1101ReadReg
+   \   00001E A4 FC        AND       A, #0xfc
+   \   000020 A1 00        CP        A, #0x0
+   \   000022 27 07        JREQ      L:??CC1101RecPacket_1
+    514                  {
+    515                      x = CC1101ReadReg(CC1101_RXFIFO);
+   \   000024 A6 3F        LD        A, #0x3f
+   \   000026 CD ....      CALL      L:CC1101ReadReg
+   \   000029 5F           CLRW      X
+   \   00002A 97           LD        XL, A
+    516                  }
+    517                  if( pktLen == 0 )           { return 0; }
+   \                     ??CC1101RecPacket_1:
+   \   00002B 3D ..        TNZ       S:?b10
+   \   00002D 26 03        JRNE      L:??CC1101RecPacket_2
+   \   00002F 4F           CLR       A
+   \   000030 20 30        JRA       L:??CC1101RecPacket_3
+    518                  else                        { pktLen --; }
+   \                     ??CC1101RecPacket_2:
+   \   000032 B6 ..        LD        A, S:?b10
+   \   000034 AB FF        ADD       A, #0xff
+   \   000036 B7 ..        LD        S:?b10, A
+    519                  CC1101ReadMultiReg(CC1101_RXFIFO, rxBuffer, pktLen); // Pull data
+   \   000038 45 .. ..     MOV       S:?b0, S:?b10
+   \   00003B BE ..        LDW       X, S:?w4
+   \   00003D A6 3F        LD        A, #0x3f
+   \   00003F CD ....      CALL      L:CC1101ReadMultiReg
+    520                  CC1101ReadMultiReg(CC1101_RXFIFO, status, 2);   // Read  status bytes
+   \   000042 35 02 ....   MOV       S:?b0, #0x2
+   \   000046 96           LDW       X, SP
+   \   000047 1C 0001      ADDW      X, #0x1
+   \   00004A A6 3F        LD        A, #0x3f
+   \   00004C CD ....      CALL      L:CC1101ReadMultiReg
+    521          
+    522                  CC1101ClrRXBuff( );
+   \   00004F CD ....      CALL      L:CC1101ClrRXBuff
+    523          
+    524                  if( status[1] & CRC_OK ) {   return pktLen; }
+   \   000052 7B 02        LD        A, (0x2,SP)
+   \   000054 A4 80        AND       A, #0x80
+   \   000056 A1 00        CP        A, #0x0
+   \   000058 27 04        JREQ      L:??CC1101RecPacket_4
+   \   00005A B6 ..        LD        A, S:?b10
+   \   00005C 20 04        JRA       L:??CC1101RecPacket_3
+    525                  else                     {   return 0; }
+   \                     ??CC1101RecPacket_4:
+   \   00005E 4F           CLR       A
+   \   00005F 20 01        JRA       L:??CC1101RecPacket_3
+    526              }
+    527              else   {  return 0; }                               // Error
+   \                     ??CC1101RecPacket_0:
+   \   000061 4F           CLR       A
+   \                     ??CC1101RecPacket_3:
+   \   000062 5B 02        ADD       SP, #0x2
+   \   000064 CC ....      JP        L:?epilogue_l2
+    528          }
+    529          /*
+    530          ================================================================================
+    531          Function : CC1101Init( )
+    532              Initialize the CC1101, User can modify it
+    533          INPUT    : None
+    534          OUTPUT   : None
+    535          ================================================================================
+    536          */
+
+   \                                 In section .near_func.text, align 1
+    537          void CC1101Init( void )
+    538          {
+   \                     CC1101Init:
+   \   000000 52 01        SUB       SP, #0x1
+    539              volatile INT8U i, j;
+    540          
+    541              CC1101Reset( );   
+   \   000002 CD ....      CALL      L:CC1101Reset
+    542              //seekii add
+    543              WriteRfSetting();
+   \   000005 CD ....      CALL      L:WriteRfSetting
+    544          #if 0
+    545              CC1101WriteReg( CC1101InitData[0][0], CC1101InitData[0][1] );
+    546              CC1101WriteReg( CC1101InitData[1][0], CC1101InitData[1][1] );
+    547              CC1101WriteReg( CC1101InitData[2][0], CC1101InitData[2][1] );
+    548              CC1101WriteReg( CC1101InitData[3][0], CC1101InitData[3][1] );
+    549              CC1101WriteReg( CC1101InitData[4][0], CC1101InitData[4][1] );
+    550              CC1101WriteReg( CC1101InitData[5][0], CC1101InitData[5][1] );
+    551              CC1101WriteReg( CC1101InitData[6][0], CC1101InitData[6][1] );
+    552              CC1101WriteReg( CC1101InitData[7][0], CC1101InitData[7][1] );
+    553              CC1101WriteReg( CC1101InitData[8][0], CC1101InitData[8][1] );
+    554              CC1101WriteReg( CC1101InitData[9][0], CC1101InitData[9][1] );
+    555              CC1101WriteReg( CC1101InitData[10][0], CC1101InitData[10][1] );
+    556              CC1101WriteReg( CC1101InitData[11][0], CC1101InitData[11][1] );
+    557              CC1101WriteReg( CC1101InitData[12][0], CC1101InitData[12][1] );
+    558              CC1101WriteReg( CC1101InitData[13][0], CC1101InitData[13][1] );
+    559              CC1101WriteReg( CC1101InitData[14][0], CC1101InitData[14][1] );
+    560              CC1101WriteReg( CC1101InitData[15][0], CC1101InitData[15][1] );
+    561              CC1101WriteReg( CC1101InitData[16][0], CC1101InitData[16][1] );
+    562              CC1101WriteReg( CC1101InitData[17][0], CC1101InitData[17][1] );
+    563              CC1101WriteReg( CC1101InitData[18][0], CC1101InitData[18][1] );
+    564              CC1101WriteReg( CC1101InitData[19][0], CC1101InitData[19][1] );
+    565              CC1101WriteReg( CC1101InitData[20][0], CC1101InitData[20][1] );
+    566              CC1101WriteReg( CC1101InitData[21][0], CC1101InitData[21][1] );
+    567          
+    568              CC1101SetAddress( 0x05, BROAD_0AND255 );
+    569              CC1101SetSYNC( 0x8799 );
+    570              CC1101WriteReg(CC1101_MDMCFG1,   0x72); //Modem Configuration
+    571            #endif  
+    572              
+    573          
+    574              CC1101WriteMultiReg(CC1101_PATABLE, PaTabel, 8 );
+   \   000008 35 08 ....   MOV       S:?b0, #0x8
+   \   00000C AE ....      LDW       X, #PaTabel
+   \   00000F A6 3E        LD        A, #0x3e
+   \   000011 CD ....      CALL      L:CC1101WriteMultiReg
+    575          
+    576              i = CC1101ReadStatus( CC1101_PARTNUM );//for test, must be 0x80
+   \   000014 A6 30        LD        A, #0x30
+   \   000016 CD ....      CALL      L:CC1101ReadStatus
+   \   000019 6B 01        LD        (0x1,SP), A
+    577              i = CC1101ReadStatus( CC1101_VERSION );//for test, refer to the datasheet
+   \   00001B A6 31        LD        A, #0x31
+   \   00001D CD ....      CALL      L:CC1101ReadStatus
+   \   000020 6B 01        LD        (0x1,SP), A
+    578          }
+   \   000022 5B 01        ADD       SP, #0x1
+   \   000024 81           RET
+    579          
+    580          
+    581          /*
+    582          ================================================================================
+    583          ------------------------------------THE END-------------------------------------
+    584          ================================================================================
+    585          */
+
+   Section sizes:
+
+   Bytes  Function/Label
+   -----  --------------
+       8  CC1101ClrRXBuff
+       8  CC1101ClrTXBuff
+       8  CC1101GetRXCnt
+      37  CC1101Init
+      44  CC1101InitData
+      95  CC1101ReadMultiReg
+      53  CC1101ReadReg
+      53  CC1101ReadStatus
+     103  CC1101RecPacket
+      47  CC1101Reset
+     114  CC1101SendPacket
+      78  CC1101SetAddress
+       5  CC1101SetIdle
+      29  CC1101SetSYNC
+      36  CC1101SetTRMode
+      48  CC1101WORInit
+      42  CC1101WriteCmd
+      77  CC1101WriteMultiReg
+      49  CC1101WriteReg
+       8  PaTabel
+     349  WriteRfSetting
+      35  rfSettings
+
+ 
+    52 bytes in section .near.data
+    35 bytes in section .near.rodata
+ 1 239 bytes in section .near_func.text
+ 
+ 1 239 bytes of CODE  memory
+    35 bytes of CONST memory
+    52 bytes of DATA  memory
+
+Errors: none
+Warnings: none

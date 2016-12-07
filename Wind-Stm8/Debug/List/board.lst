@@ -1,0 +1,243 @@
+###############################################################################
+#
+# IAR C/C++ Compiler V2.10.2.149 for STM8                 07/Dec/2016  10:10:34
+# Copyright 2010-2014 IAR Systems AB.
+#
+#    Source file  =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\board.c
+#    Command line =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\board.c -e
+#        -Ol --no_cse --no_unroll --no_inline --no_code_motion --no_tbaa
+#        --no_cross_call --debug --code_model small --data_model medium -o
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\Obj\ --dlib_config
+#        "C:\Program Files (x86)\IAR Systems\Embedded Workbench
+#        7.0\stm8\LIB\dlstm8smn.h" -D STM8L15X_MD -lCN
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\List\ --diag_suppress
+#        Pe177,Pe550 -I
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\inc\ -I
+#        F:\share\gitHub\windSensor\Wind-Stm8\Libraries\STM8L15x_StdPeriph_Driver\inc\
+#        --vregs 16
+#    List file    =  F:\share\gitHub\windSensor\Wind-Stm8\Debug\List\board.lst
+#    Object file  =  F:\share\gitHub\windSensor\Wind-Stm8\Debug\Obj\board.o
+#
+###############################################################################
+
+F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\board.c
+      1          #include "stm8l15x_spi.h"
+      2          #include "stm8l15x.h"
+      3          #include "stm8l_discovery_lcd.h"
+      4          #include "discover_board.h"
+      5          #include "icc_measure.h"
+      6          #include "discover_functions.h"
+      7          	
+      8          #include "board.h"
+      9          #include "main.h"
+     10          #include "CC1101.h"
+     11          
+     12          
+     13          
+     14          /*
+     15          =================================================================================
+     16          SPI_ExchangeByte( );
+     17          Function : Exchange a byte via the SPI bus
+     18          INTPUT   : input, The input byte
+     19          OUTPUT   : The output byte from SPI bus
+     20          =================================================================================
+     21          */
+
+   \                                 In section .near_func.text, align 1
+     22          INT8U SPI_ExchangeByte( INT8U input )
+     23          {
+   \                     SPI_ExchangeByte:
+   \   000000 3B ....      PUSH      S:?b8
+   \   000003 B7 ..        LD        S:?b8, A
+     24              //wait for last transmitt finishing
+     25          	while (SPI_GetFlagStatus(SPI1,SPI_FLAG_TXE) == RESET);
+   \                     ??SPI_ExchangeByte_0:
+   \   000005 A6 02        LD        A, #0x2
+   \   000007 AE 5200      LDW       X, #0x5200
+   \   00000A CD ....      CALL      L:SPI_GetFlagStatus
+   \   00000D A1 00        CP        A, #0x0
+   \   00000F 27 F4        JREQ      L:??SPI_ExchangeByte_0
+     26          	SPI_SendData(SPI1,input );
+   \   000011 B6 ..        LD        A, S:?b8
+   \   000013 AE 5200      LDW       X, #0x5200
+   \   000016 CD ....      CALL      L:SPI_SendData
+     27          	//wait for receiving a byte
+     28          	while (SPI_GetFlagStatus(SPI1,SPI_FLAG_RXNE) == RESET);
+   \                     ??SPI_ExchangeByte_1:
+   \   000019 A6 01        LD        A, #0x1
+   \   00001B AE 5200      LDW       X, #0x5200
+   \   00001E CD ....      CALL      L:SPI_GetFlagStatus
+   \   000021 A1 00        CP        A, #0x0
+   \   000023 27 F4        JREQ      L:??SPI_ExchangeByte_1
+     29          	return SPI_ReceiveData( SPI1);
+   \   000025 AE 5200      LDW       X, #0x5200
+   \   000028 CD ....      CALL      L:SPI_ReceiveData
+   \   00002B 32 ....      POP       S:?b8
+   \   00002E 81           RET
+     30          }
+     31          /*
+     32          =================================================================================
+     33          SPI_Initial( );
+     34          Function : Initialize the SPI bus
+     35          INTPUT   : None
+     36          OUTPUT   : None
+     37          =================================================================================
+     38          */
+     39          
+     40          
+     41          
+
+   \                                 In section .near_func.text, align 1
+     42          void SPI_Initial( void )
+     43          {
+     44          	int i;
+     45              //enable clock for SPI bus
+     46          	CLK_PeripheralClockConfig(CLK_Peripheral_SPI1, ENABLE);
+   \                     SPI_Initial:
+   \   000000 35 01 ....   MOV       S:?b0, #0x1
+   \   000004 A6 04        LD        A, #0x4
+   \   000006 CD ....      CALL      L:CLK_PeripheralClockConfig
+     47          	//Set as default
+     48          	SPI_DeInit( SPI1);
+   \   000009 AE 5200      LDW       X, #0x5200
+   \   00000C CD ....      CALL      L:SPI_DeInit
+     49          	//Set the priority of the SPI
+     50          	SPI_Init( SPI1,SPI_FirstBit_MSB, SPI_BaudRatePrescaler_4,
+     51                      SPI_Mode_Master, SPI_CPOL_Low, SPI_CPHA_1Edge,
+     52                      SPI_Direction_2Lines_FullDuplex, SPI_NSS_Soft ,0x07);
+   \   00000F 35 07 ....   MOV       S:?b6, #0x7
+   \   000013 35 02 ....   MOV       S:?b5, #0x2
+   \   000017 3F ..        CLR       S:?b4
+   \   000019 3F ..        CLR       S:?b3
+   \   00001B 3F ..        CLR       S:?b2
+   \   00001D 35 04 ....   MOV       S:?b1, #0x4
+   \   000021 35 08 ....   MOV       S:?b0, #0x8
+   \   000025 4F           CLR       A
+   \   000026 AE 5200      LDW       X, #0x5200
+   \   000029 CD ....      CALL      L:SPI_Init
+     53              //Enable SPi
+     54          	SPI_Cmd( SPI1,ENABLE );
+   \   00002C A6 01        LD        A, #0x1
+   \   00002E AE 5200      LDW       X, #0x5200
+   \   000031 CD ....      CALL      L:SPI_Cmd
+     55          	for(i=0;i<5;i++);
+   \   000034 5F           CLRW      X
+   \   000035 20 01        JRA       L:??SPI_Initial_0
+   \                     ??SPI_Initial_1:
+   \   000037 5C           INCW      X
+   \                     ??SPI_Initial_0:
+   \   000038 A3 0005      CPW       X, #0x5
+   \   00003B 2F FA        JRSLT     L:??SPI_Initial_1
+     56              //Config the GPIOs for SPI bus
+     57          	GPIO_Init( GPIOB, GPIO_Pin_7,GPIO_Mode_In_PU_No_IT );
+   \   00003D 35 40 ....   MOV       S:?b0, #0x40
+   \   000041 A6 80        LD        A, #0x80
+   \   000043 AE 5005      LDW       X, #0x5005
+   \   000046 CD ....      CALL      L:GPIO_Init
+     58          	GPIO_Init( GPIOB, GPIO_Pin_5 | GPIO_Pin_6, GPIO_Mode_Out_PP_High_Slow );
+   \   000049 35 D0 ....   MOV       S:?b0, #0xd0
+   \   00004D A6 60        LD        A, #0x60
+   \   00004F AE 5005      LDW       X, #0x5005
+   \   000052 CC ....      JP        L:GPIO_Init
+     59          }
+     60          /*
+     61          =================================================================================
+     62          GPIO_DeInitial( );
+     63          Function : Initialize the other GPIOs of the board
+     64          INTPUT   : None
+     65          OUTPUT   : None
+     66          =================================================================================
+     67          */
+
+   \                                 In section .near_func.text, align 1
+     68          void GPIO_DeInitial( void )
+     69          {
+     70              GPIO_LowPower_Config();
+   \                     GPIO_DeInitial:
+   \   000000 CC ....      JP        L:GPIO_LowPower_Config
+     71          
+     72          }
+     73          /*
+     74          =================================================================================
+     75          GPIO_Initial( );
+     76          Function : Initialize the other GPIOs of the board
+     77          INTPUT   : None
+     78          OUTPUT   : None
+     79          =================================================================================
+     80          */
+
+   \                                 In section .near_func.text, align 1
+     81          void GPIO_Initial( void )
+     82          {
+     83          
+     84              GPIO_Init( GPIOB, GPIO_Pin_0, GPIO_Mode_Out_PP_High_Slow );
+   \                     GPIO_Initial:
+   \   000000 35 D0 ....   MOV       S:?b0, #0xd0
+   \   000004 A6 01        LD        A, #0x1
+   \   000006 AE 5005      LDW       X, #0x5005
+   \   000009 CD ....      CALL      L:GPIO_Init
+     85              GPIO_SetBits( GPIOB, GPIO_Pin_0 );
+   \   00000C A6 01        LD        A, #0x1
+   \   00000E AE 5005      LDW       X, #0x5005
+   \   000011 CD ....      CALL      L:GPIO_SetBits
+     86              //config the LED and CSN for RF module, CSN = PB4,LED = PB0
+     87              //GPIO_Init( GPIOC, GPIO_Pin_2, GPIO_Mode_Out_PP_High_Slow );//LED
+     88              //GPIO_Init( GPIOC, GPIO_Pin_3, GPIO_Mode_Out_PP_High_Slow );//LED
+     89                 
+     90              GPIO_Init( GPIOC, GPIO_Pin_2, GPIO_Mode_Out_PP_Low_Fast );//LED
+   \   000014 35 E0 ....   MOV       S:?b0, #0xe0
+   \   000018 A6 04        LD        A, #0x4
+   \   00001A AE 500A      LDW       X, #0x500a
+   \   00001D CD ....      CALL      L:GPIO_Init
+     91              GPIO_Init( GPIOC, GPIO_Pin_3, GPIO_Mode_Out_PP_Low_Fast );//LED  
+   \   000020 35 E0 ....   MOV       S:?b0, #0xe0
+   \   000024 A6 08        LD        A, #0x8
+   \   000026 AE 500A      LDW       X, #0x500a
+   \   000029 CD ....      CALL      L:GPIO_Init
+     92              
+     93              GPIO_Init( GPIOB, GPIO_Pin_3, GPIO_Mode_Out_PP_High_Slow );//LED
+   \   00002C 35 D0 ....   MOV       S:?b0, #0xd0
+   \   000030 A6 08        LD        A, #0x8
+   \   000032 AE 5005      LDW       X, #0x5005
+   \   000035 CD ....      CALL      L:GPIO_Init
+     94              GPIO_Init( GPIOB, GPIO_Pin_2,GPIO_Mode_In_FL_No_IT );//RF INPUT
+   \   000038 3F ..        CLR       S:?b0
+   \   00003A A6 04        LD        A, #0x4
+   \   00003C AE 5005      LDW       X, #0x5005
+   \   00003F CD ....      CALL      L:GPIO_Init
+     95              GPIO_Init( GPIOB, GPIO_Pin_1,GPIO_Mode_In_FL_No_IT );//SHWN
+   \   000042 3F ..        CLR       S:?b0
+   \   000044 A6 02        LD        A, #0x2
+   \   000046 AE 5005      LDW       X, #0x5005
+   \   000049 CC ....      JP        L:GPIO_Init
+     96             
+     97              //GPIO_ExternalPullUpConfig(GPIOC,GPIO_Pin_3,ENABLE);
+     98             // GPIO_ExternalPullUpConfig(GPIOC,GPIO_Pin_2,ENABLE);
+     99              
+    100              //GPIO_Init(GPIOC, GPIO_Pin_3, GPIO_Mode_Out_PP_Low_Fast);//串口发送端初始化 
+    101             // GPIO_Init(GPIOC, GPIO_Pin_2, GPIO_Mode_In_PU_No_IT);//串口接收端初始化
+    102          }
+    103          /*
+    104          =================================================================================
+    105          ------------------------------------End of FILE----------------------------------
+    106          =================================================================================
+    107          */
+
+   Section sizes:
+
+   Bytes  Function/Label
+   -----  --------------
+       3  GPIO_DeInitial
+      76  GPIO_Initial
+      47  SPI_ExchangeByte
+      85  SPI_Initial
+
+ 
+ 211 bytes in section .near_func.text
+ 
+ 211 bytes of CODE memory
+
+Errors: none
+Warnings: none

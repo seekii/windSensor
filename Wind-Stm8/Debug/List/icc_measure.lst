@@ -1,0 +1,571 @@
+###############################################################################
+#
+# IAR C/C++ Compiler V2.10.2.149 for STM8                 07/Dec/2016  10:10:35
+# Copyright 2010-2014 IAR Systems AB.
+#
+#    Source file  =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\icc_measure.c
+#    Command line =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\icc_measure.c
+#        -e -Ol --no_cse --no_unroll --no_inline --no_code_motion --no_tbaa
+#        --no_cross_call --debug --code_model small --data_model medium -o
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\Obj\ --dlib_config
+#        "C:\Program Files (x86)\IAR Systems\Embedded Workbench
+#        7.0\stm8\LIB\dlstm8smn.h" -D STM8L15X_MD -lCN
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\List\ --diag_suppress
+#        Pe177,Pe550 -I
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\inc\ -I
+#        F:\share\gitHub\windSensor\Wind-Stm8\Libraries\STM8L15x_StdPeriph_Driver\inc\
+#        --vregs 16
+#    List file    =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\List\icc_measure.lst
+#    Object file  =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\Obj\icc_measure.o
+#
+###############################################################################
+
+F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\icc_measure.c
+      1          /**
+      2            ******************************************************************************
+      3            * @file    icc_measure.c
+      4            * @author  Microcontroller Division
+      5            * @version V1.2.0
+      6            * @date    09/2010
+      7            * @brief   Current measurements
+      8            ******************************************************************************
+      9            * @copy
+     10            *
+     11            * THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS AT PROVIDING CUSTOMERS
+     12            * WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN ORDER FOR THEM TO SAVE
+     13            * TIME. AS A RESULT, STMICROELECTRONICS SHALL NOT BE HELD LIABLE FOR ANY
+     14            * DIRECT, INDIRECT OR CONSEQUENTIAL DAMAGES WITH RESPECT TO ANY CLAIMS ARISING
+     15            * FROM THE CONTENT OF SUCH FIRMWARE AND/OR THE USE MADE BY CUSTOMERS OF THE
+     16            * CODING INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR PRODUCTS.
+     17            *
+     18            * <h2><center>&copy; COPYRIGHT 2010 STMicroelectronics</center></h2>
+     19            */
+     20           
+     21          /* Includes ------------------------------------------------------------------*/
+     22          #include "icc_measure.h"
+     23          #include "discover_functions.h"
+     24          #include "discover_board.h"
+     25          #include "stm8l_discovery_lcd.h"
+     26          
+     27          /**
+     28            * @brief  configure GPIOs before entering low power
+     29          	* @caller Halt_Init and ADC_Icc_Test
+     30            * @param None
+     31            * @retval None
+     32            */  
+
+   \                                 In section .near_func.text, align 1
+     33          void GPIO_LowPower_Config(void)
+     34          {
+     35          
+     36          /* Port A in output push-pull 0 */
+     37            GPIO_Init(GPIOA,GPIO_Pin_0|GPIO_Pin_1|GPIO_Pin_2|GPIO_Pin_3 ,GPIO_Mode_Out_PP_Low_Slow);
+   \                     GPIO_LowPower_Config:
+   \   000000 35 C0 ....   MOV       S:?b0, #0xc0
+   \   000004 A6 0F        LD        A, #0xf
+   \   000006 AE 5000      LDW       X, #0x5000
+   \   000009 CD ....      CALL      L:GPIO_Init
+     38            /* Port B in output push-pull 0 */
+     39            GPIO_Init(GPIOB,GPIO_Pin_2|GPIO_Pin_3|GPIO_Pin_4|GPIO_Pin_5|GPIO_Pin_6|GPIO_Pin_7,GPIO_Mode_Out_PP_Low_Slow);	
+   \   00000C 35 C0 ....   MOV       S:?b0, #0xc0
+   \   000010 A6 FC        LD        A, #0xfc
+   \   000012 AE 5005      LDW       X, #0x5005
+   \   000015 CD ....      CALL      L:GPIO_Init
+     40          /* Port C in output push-pull 0 except Button pins */
+     41            GPIO_Init(GPIOC, GPIO_Pin_0|GPIO_Pin_2|GPIO_Pin_3|GPIO_Pin_4, GPIO_Mode_Out_PP_Low_Slow);
+   \   000018 35 C0 ....   MOV       S:?b0, #0xc0
+   \   00001C A6 1D        LD        A, #0x1d
+   \   00001E AE 500A      LDW       X, #0x500a
+   \   000021 CD ....      CALL      L:GPIO_Init
+     42            GPIO_Init(GPIOB,GPIO_Pin_1,GPIO_Mode_In_FL_IT);//MAGNET INTERRUPT
+   \   000024 35 20 ....   MOV       S:?b0, #0x20
+   \   000028 A6 02        LD        A, #0x2
+   \   00002A AE 5005      LDW       X, #0x5005
+   \   00002D CC ....      JP        L:GPIO_Init
+     43            
+     44          }
+     45          
+     46          /**
+     47            * @brief  Read ADC1
+     48          	* @caller several functions
+     49            * @param None
+     50            * @retval ADC value
+     51            */ 
+
+   \                                 In section .near_func.text, align 1
+     52          u16 ADC_Supply(void)
+     53          {
+   \                     ADC_Supply:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 3B ....      PUSH      S:?b10
+     54          	uint8_t i;
+     55          	uint16_t res;
+     56          
+     57          /* Enable ADC clock */
+     58            CLK_PeripheralClockConfig(CLK_Peripheral_ADC1, ENABLE);
+   \   000006 35 01 ....   MOV       S:?b0, #0x1
+   \   00000A A6 10        LD        A, #0x10
+   \   00000C CD ....      CALL      L:CLK_PeripheralClockConfig
+     59          
+     60          /* de-initialize ADC */
+     61            ADC_DeInit(ADC1);
+   \   00000F AE 5340      LDW       X, #0x5340
+   \   000012 CD ....      CALL      L:ADC_DeInit
+     62          
+     63          /*ADC configuration
+     64            ADC configured as follow:
+     65            - Channel VREF
+     66            - Mode = Single ConversionMode(ContinuousConvMode disabled)
+     67            - Resolution = 12Bit
+     68            - Prescaler = /1
+     69            - sampling time 9 */
+     70            
+     71            ADC_VrefintCmd(ENABLE);
+   \   000015 A6 01        LD        A, #0x1
+   \   000017 CD ....      CALL      L:ADC_VrefintCmd
+     72            delay_10us(3);
+   \   00001A AE 0003      LDW       X, #0x3
+   \   00001D CD ....      CALL      L:delay_10us
+     73            
+     74            
+     75            ADC_Cmd(ADC1, ENABLE);	 
+   \   000020 A6 01        LD        A, #0x1
+   \   000022 AE 5340      LDW       X, #0x5340
+   \   000025 CD ....      CALL      L:ADC_Cmd
+     76            ADC_Init(ADC1, ADC_ConversionMode_Single,
+     77            ADC_Resolution_12Bit, ADC_Prescaler_1);
+   \   000028 3F ..        CLR       S:?b1
+   \   00002A 3F ..        CLR       S:?b0
+   \   00002C 4F           CLR       A
+   \   00002D AE 5340      LDW       X, #0x5340
+   \   000030 CD ....      CALL      L:ADC_Init
+     78            
+     79            ADC_SamplingTimeConfig(ADC1, ADC_Group_FastChannels, ADC_SamplingTime_9Cycles);
+   \   000033 35 01 ....   MOV       S:?b0, #0x1
+   \   000037 A6 01        LD        A, #0x1
+   \   000039 AE 5340      LDW       X, #0x5340
+   \   00003C CD ....      CALL      L:ADC_SamplingTimeConfig
+     80            ADC_VrefintCmd(ENABLE);
+   \   00003F A6 01        LD        A, #0x1
+   \   000041 CD ....      CALL      L:ADC_VrefintCmd
+     81            ADC_ChannelCmd(ADC1, ADC_Channel_Vrefint, ENABLE);
+   \   000044 A6 01        LD        A, #0x1
+   \   000046 90AE 0010    LDW       Y, #0x10
+   \   00004A AE 5340      LDW       X, #0x5340
+   \   00004D CD ....      CALL      L:ADC_ChannelCmd
+     82            delay_10us(3);
+   \   000050 AE 0003      LDW       X, #0x3
+   \   000053 CD ....      CALL      L:delay_10us
+     83          
+     84          /* initialize result */
+     85            res = 0;
+   \   000056 3F ..        CLR       S:?b9
+   \   000058 3F ..        CLR       S:?b8
+     86            for(i=8; i>0; i--)
+   \   00005A 35 08 ....   MOV       S:?b10, #0x8
+   \   00005E 20 24        JRA       L:??ADC_Supply_0
+     87            {
+     88          /* start ADC convertion by software */
+     89              ADC_SoftwareStartConv(ADC1);
+   \                     ??ADC_Supply_1:
+   \   000060 AE 5340      LDW       X, #0x5340
+   \   000063 CD ....      CALL      L:ADC_SoftwareStartConv
+     90          /* wait until end-of-covertion */
+     91              while( ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == 0 );
+   \                     ??ADC_Supply_2:
+   \   000066 A6 01        LD        A, #0x1
+   \   000068 AE 5340      LDW       X, #0x5340
+   \   00006B CD ....      CALL      L:ADC_GetFlagStatus
+   \   00006E A1 00        CP        A, #0x0
+   \   000070 27 F4        JREQ      L:??ADC_Supply_2
+     92          /* read ADC convertion result */
+     93              res += ADC_GetConversionValue(ADC1);
+   \   000072 AE 5340      LDW       X, #0x5340
+   \   000075 CD ....      CALL      L:ADC_GetConversionValue
+   \   000078 72BB ....    ADDW      X, S:?w4
+   \   00007C BF ..        LDW       S:?w4, X
+     94            }
+   \   00007E B6 ..        LD        A, S:?b10
+   \   000080 AB FF        ADD       A, #0xff
+   \   000082 B7 ..        LD        S:?b10, A
+   \                     ??ADC_Supply_0:
+   \   000084 3D ..        TNZ       S:?b10
+   \   000086 26 D8        JRNE      L:??ADC_Supply_1
+     95          	
+     96          /* de-initialize ADC */
+     97            ADC_VrefintCmd(DISABLE);
+   \   000088 4F           CLR       A
+   \   000089 CD ....      CALL      L:ADC_VrefintCmd
+     98          
+     99            ADC_DeInit(ADC1);
+   \   00008C AE 5340      LDW       X, #0x5340
+   \   00008F CD ....      CALL      L:ADC_DeInit
+    100           
+    101           /* disable SchmittTrigger for ADC_Channel_24, to save power */
+    102            ADC_SchmittTriggerConfig(ADC1, ADC_Channel_24, DISABLE);
+   \   000092 4F           CLR       A
+   \   000093 90AE 0001    LDW       Y, #0x1
+   \   000097 AE 5340      LDW       X, #0x5340
+   \   00009A CD ....      CALL      L:ADC_SchmittTriggerConfig
+    103          	
+    104            CLK_PeripheralClockConfig(CLK_Peripheral_ADC1, DISABLE);
+   \   00009D 3F ..        CLR       S:?b0
+   \   00009F A6 10        LD        A, #0x10
+   \   0000A1 CD ....      CALL      L:CLK_PeripheralClockConfig
+    105            ADC_ChannelCmd(ADC1, ADC_Channel_Vrefint, DISABLE);
+   \   0000A4 4F           CLR       A
+   \   0000A5 90AE 0010    LDW       Y, #0x10
+   \   0000A9 AE 5340      LDW       X, #0x5340
+   \   0000AC CD ....      CALL      L:ADC_ChannelCmd
+    106          	
+    107            return (res>>3);
+   \   0000AF BE ..        LDW       X, S:?w4
+   \   0000B1 54           SRLW      X
+   \   0000B2 54           SRLW      X
+   \   0000B3 54           SRLW      X
+   \   0000B4 32 ....      POP       S:?b10
+   \   0000B7 CC ....      JP        L:?epilogue_w4
+    108          }
+    109          
+    110          /**
+    111            * @brief ADC_Icc(ADC_24 of ADC_0~27) initialization
+    112          	* @caller main and ADC_Icc_Test
+    113            * @param None
+    114            * @retval None
+    115            */ 
+
+   \                                 In section .near_func.text, align 1
+    116          void ADC_Icc_Init(void)
+    117          {
+    118          
+    119          /* Enable ADC clock */
+    120            CLK_PeripheralClockConfig(CLK_Peripheral_ADC1, ENABLE);
+   \                     ADC_Icc_Init:
+   \   000000 35 01 ....   MOV       S:?b0, #0x1
+   \   000004 A6 10        LD        A, #0x10
+   \   000006 CD ....      CALL      L:CLK_PeripheralClockConfig
+    121          
+    122          /* de-initialize ADC */
+    123            ADC_DeInit(ADC1);
+   \   000009 AE 5340      LDW       X, #0x5340
+   \   00000C CD ....      CALL      L:ADC_DeInit
+    124          	
+    125          /*  ADC configured as follow:
+    126            - NbrOfChannel = 1 - ADC_Channel_24
+    127            - Mode = Single ConversionMode(ContinuousConvMode disabled)
+    128            - Resolution = 12Bit
+    129            - Prescaler = /1
+    130            - sampling time 159 */
+    131          	
+    132          /* Enable ADC1 */
+    133            ADC_Cmd(ADC1, ENABLE);
+   \   00000F A6 01        LD        A, #0x1
+   \   000011 AE 5340      LDW       X, #0x5340
+   \   000014 CD ....      CALL      L:ADC_Cmd
+    134            ADC_Init(ADC1, ADC_ConversionMode_Single,ADC_Resolution_12Bit, ADC_Prescaler_1);
+   \   000017 3F ..        CLR       S:?b1
+   \   000019 3F ..        CLR       S:?b0
+   \   00001B 4F           CLR       A
+   \   00001C AE 5340      LDW       X, #0x5340
+   \   00001F CD ....      CALL      L:ADC_Init
+    135          
+    136            ADC_SamplingTimeConfig(ADC1, ADC_Group_FastChannels, ADC_SamplingTime_9Cycles);
+   \   000022 35 01 ....   MOV       S:?b0, #0x1
+   \   000026 A6 01        LD        A, #0x1
+   \   000028 AE 5340      LDW       X, #0x5340
+   \   00002B CD ....      CALL      L:ADC_SamplingTimeConfig
+    137            ADC_ChannelCmd(ADC1, ADC_Channel_24, ENABLE);
+   \   00002E A6 01        LD        A, #0x1
+   \   000030 90AE 0001    LDW       Y, #0x1
+   \   000034 AE 5340      LDW       X, #0x5340
+   \   000037 CD ....      CALL      L:ADC_ChannelCmd
+    138          
+    139          /* disable SchmittTrigger for ADC_Channel_24, to save power */
+    140            ADC_SchmittTriggerConfig(ADC1, ADC_Channel_24, DISABLE);
+   \   00003A 4F           CLR       A
+   \   00003B 90AE 0001    LDW       Y, #0x1
+   \   00003F AE 5340      LDW       X, #0x5340
+   \   000042 CD ....      CALL      L:ADC_SchmittTriggerConfig
+    141          
+    142          /* a short time of delay is required after enable ADC */
+    143            delay_10us(3);
+   \   000045 AE 0003      LDW       X, #0x3
+   \   000048 CC ....      JP        L:delay_10us
+    144          	
+    145          }
+    146          /**
+    147            * @brief This function initializes in Ultra Low Power mode, 
+    148          	*				disable the LCD, LSE and configures the unused IOs 
+    149          	*				in output push-pull
+    150          	* @caller main and ADC_Icc_Test
+    151            * @param None
+    152            * @retval None
+    153            */ 
+
+   \                                 In section .near_func.text, align 1
+    154          void Halt_Init(void)
+    155          {
+    156          
+    157          /* Set STM8 in low power */
+    158            PWR->CSR2 = 0x2;
+   \                     Halt_Init:
+   \   000000 35 02 50B3   MOV       L:0x50b3, #0x2
+    159            
+    160            LCD_Cmd(DISABLE);
+   \   000004 4F           CLR       A
+   \   000005 CD ....      CALL      L:LCD_Cmd
+    161          
+    162            /* To wait LCD disable */
+    163            while ((LCD->CR3 & 0x40) != 0x00);
+   \                     ??Halt_Init_0:
+   \   000008 720C 5402 FB BTJT      L:0x5402, #0x6, L:??Halt_Init_0
+    164            
+    165          /* Set GPIO in low power*/	
+    166            GPIO_LowPower_Config();
+   \   00000D CD ....      CALL      L:GPIO_LowPower_Config
+    167            
+    168          /* Stop RTC Source clock */
+    169            CLK_RTCClockConfig(CLK_RTCCLKSource_Off, CLK_RTCCLKDiv_1);
+   \   000010 3F ..        CLR       S:?b0
+   \   000012 4F           CLR       A
+   \   000013 CD ....      CALL      L:CLK_RTCClockConfig
+    170            
+    171            #ifdef USE_LSE
+    172              CLK_LSEConfig(CLK_LSE_OFF);
+    173              while ((CLK->ECKCR & 0x04) != 0x00);
+    174            #else
+    175              CLK_LSICmd(DISABLE);
+   \   000016 4F           CLR       A
+   \   000017 CD ....      CALL      L:CLK_LSICmd
+    176              while ((CLK->ICKCR & 0x04) != 0x00);
+   \                     ??Halt_Init_1:
+   \   00001A 7204 50C2 FB BTJT      L:0x50c2, #0x2, L:??Halt_Init_1
+    177            #endif
+    178            
+    179            /* Stop clock RTC and LCD */ 	
+    180            CLK_PeripheralClockConfig(CLK_Peripheral_RTC, DISABLE);
+   \   00001F 3F ..        CLR       S:?b0
+   \   000021 A6 12        LD        A, #0x12
+   \   000023 CD ....      CALL      L:CLK_PeripheralClockConfig
+    181            CLK_PeripheralClockConfig(CLK_Peripheral_LCD, DISABLE);
+   \   000026 3F ..        CLR       S:?b0
+   \   000028 A6 13        LD        A, #0x13
+   \   00002A CC ....      JP        L:CLK_PeripheralClockConfig
+    182          }
+    183          
+    184          /**
+    185            * @brief Current measurement in different MCU modes:
+    186          		RUN/HALT/LowPower withouto LCD/LowPower with LCD
+    187          	* @caller main and ADC_Icc_Test
+    188            * @param MCU state
+    189            * @retval ADC value.
+    190            */
+
+   \                                 In section .near_func.text, align 1
+    191          u16 ADC_Icc_Test(u8 Mcu_State)
+    192          {
+   \                     ADC_Icc_Test:
+   \   000000 CD ....      CALL      L:?push_l2
+   \   000003 B7 ..        LD        S:?b11, A
+    193            uint16_t res;
+    194          	uint8_t i;
+    195          	
+    196          /* Test MCU state for configuration */
+    197            switch (Mcu_State)
+   \   000005 B6 ..        LD        A, S:?b11
+   \   000007 4D           TNZ       A
+   \   000008 27 3C        JREQ      L:??ADC_Icc_Test_0
+   \   00000A 4A           DEC       A
+   \   00000B 27 09        JREQ      L:??ADC_Icc_Test_1
+   \   00000D A0 02        SUB       A, #0x2
+   \   00000F 27 12        JREQ      L:??ADC_Icc_Test_2
+   \   000011 4A           DEC       A
+   \   000012 27 23        JREQ      L:??ADC_Icc_Test_3
+   \   000014 20 30        JRA       L:??ADC_Icc_Test_0
+    198            {
+    199              /* test Run mode nothing to do */	
+    200              case MCU_RUN:
+    201                break;
+    202          
+    203              /* Low power mode */		
+    204              case MCU_LPR:
+    205                Halt_Init();
+   \                     ??ADC_Icc_Test_1:
+   \   000016 CD ....      CALL      L:Halt_Init
+    206                sim();
+   \   000019 9B           sim
+    207                /* To prepare to start counter */
+    208                GPIO_HIGH(CTN_GPIO_PORT,CTN_CNTEN_GPIO_PIN);
+   \   00001A 7218 500A    BSET      L:0x500a, #0x4
+    209            
+    210                /* To configure Low Power */			
+    211                LPR_init();
+   \   00001E CD ....      CALL      L:LPR_init
+    212                break;
+   \   000021 20 23        JRA       L:??ADC_Icc_Test_0
+    213          
+    214              /* Halt mode */
+    215              case MCU_HALT:
+    216                /* Init for Halt mode  */
+    217                Halt_Init();
+   \                     ??ADC_Icc_Test_2:
+   \   000023 CD ....      CALL      L:Halt_Init
+    218                sim();	
+   \   000026 9B           sim
+    219                
+    220                /* To prepare to start counter */
+    221                GPIO_HIGH(CTN_GPIO_PORT,CTN_CNTEN_GPIO_PIN);
+   \   000027 7218 500A    BSET      L:0x500a, #0x4
+    222            
+    223                /* Falling edge for start counter */		
+    224                GPIO_LOW(CTN_GPIO_PORT,CTN_CNTEN_GPIO_PIN);
+   \   00002B 7219 500A    BRES      L:0x500a, #0x4
+    225                delay_10us(1);
+   \   00002F 5F           CLRW      X
+   \   000030 5C           INCW      X
+   \   000031 CD ....      CALL      L:delay_10us
+    226                
+    227                /* MCU in halt during measurement */	
+    228                /* Wake up by Interrupt done counter Input Port E pin 6 */
+    229                halt();
+   \   000034 8E           halt
+    230                break;
+   \   000035 20 0F        JRA       L:??ADC_Icc_Test_0
+    231              
+    232              case MCU_LPR_LCD:
+    233                PWR->CSR2 = 0x2;
+   \                     ??ADC_Icc_Test_3:
+   \   000037 35 02 50B3   MOV       L:0x50b3, #0x2
+    234                sim();
+   \   00003B 9B           sim
+    235                /* To configure GPIO for reduce current. */
+    236                GPIO_LowPower_Config();
+   \   00003C CD ....      CALL      L:GPIO_LowPower_Config
+    237          
+    238                /* To prepare to start counter */
+    239                GPIO_HIGH(CTN_GPIO_PORT,CTN_CNTEN_GPIO_PIN);
+   \   00003F 7218 500A    BSET      L:0x500a, #0x4
+    240          
+    241                /* To configure Low Power */
+    242                LPR_init();
+   \   000043 CD ....      CALL      L:LPR_init
+    243                break;		
+    244            }
+    245          	
+    246            sim();
+   \                     ??ADC_Icc_Test_0:
+   \   000046 9B           sim
+    247          
+    248          /* re-start ADC chanel 24 for Current measurement */
+    249            ADC_Icc_Init();	
+   \   000047 CD ....      CALL      L:ADC_Icc_Init
+    250          	
+    251          /* Read ADC for current measurmeent */
+    252          /* initialize result */
+    253            res = 0;
+   \   00004A 3F ..        CLR       S:?b9
+   \   00004C 3F ..        CLR       S:?b8
+    254          
+    255            for(i=8; i>0; i--)
+   \   00004E 35 08 ....   MOV       S:?b10, #0x8
+   \   000052 20 24        JRA       L:??ADC_Icc_Test_4
+    256            {
+    257              /* start ADC convertion by software */
+    258              ADC_SoftwareStartConv(ADC1);
+   \                     ??ADC_Icc_Test_5:
+   \   000054 AE 5340      LDW       X, #0x5340
+   \   000057 CD ....      CALL      L:ADC_SoftwareStartConv
+    259              
+    260              /* wait until end-of-covertion */
+    261              while( ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == 0 );
+   \                     ??ADC_Icc_Test_6:
+   \   00005A A6 01        LD        A, #0x1
+   \   00005C AE 5340      LDW       X, #0x5340
+   \   00005F CD ....      CALL      L:ADC_GetFlagStatus
+   \   000062 A1 00        CP        A, #0x0
+   \   000064 27 F4        JREQ      L:??ADC_Icc_Test_6
+    262              
+    263              /* read ADC convertion result */
+    264              res += ADC_GetConversionValue(ADC1);
+   \   000066 AE 5340      LDW       X, #0x5340
+   \   000069 CD ....      CALL      L:ADC_GetConversionValue
+   \   00006C 72BB ....    ADDW      X, S:?w4
+   \   000070 BF ..        LDW       S:?w4, X
+    265            }
+   \   000072 B6 ..        LD        A, S:?b10
+   \   000074 AB FF        ADD       A, #0xff
+   \   000076 B7 ..        LD        S:?b10, A
+   \                     ??ADC_Icc_Test_4:
+   \   000078 3D ..        TNZ       S:?b10
+   \   00007A 26 D8        JRNE      L:??ADC_Icc_Test_5
+    266          	
+    267            /* ICC_CNT_EN invalid */
+    268            GPIO_HIGH(CTN_GPIO_PORT,CTN_CNTEN_GPIO_PIN);
+   \   00007C 7218 500A    BSET      L:0x500a, #0x4
+    269           
+    270            GPIO_Init(BUTTON_GPIO_PORT, USER_GPIO_PIN,GPIO_Mode_In_FL_IT);
+   \   000080 35 20 ....   MOV       S:?b0, #0x20
+   \   000084 A6 02        LD        A, #0x2
+   \   000086 AE 500A      LDW       X, #0x500a
+   \   000089 CD ....      CALL      L:GPIO_Init
+    271          
+    272            rim();
+   \   00008C 9A           rim
+    273          	
+    274          /* Disable ADC 1 for reduce current */
+    275            ADC_Cmd(ADC1, DISABLE);
+   \   00008D 4F           CLR       A
+   \   00008E AE 5340      LDW       X, #0x5340
+   \   000091 CD ....      CALL      L:ADC_Cmd
+    276          
+    277            CLK_PeripheralClockConfig(CLK_Peripheral_ADC1, DISABLE);
+   \   000094 3F ..        CLR       S:?b0
+   \   000096 A6 10        LD        A, #0x10
+   \   000098 CD ....      CALL      L:CLK_PeripheralClockConfig
+    278          
+    279            if (Mcu_State !=MCU_LPR_LCD)
+   \   00009B B6 ..        LD        A, S:?b11
+   \   00009D A1 04        CP        A, #0x4
+   \   00009F 27 0C        JREQ      L:??ADC_Icc_Test_7
+    280            {
+    281              CLK_PeripheralClockConfig(CLK_Peripheral_RTC, ENABLE);
+   \   0000A1 35 01 ....   MOV       S:?b0, #0x1
+   \   0000A5 A6 12        LD        A, #0x12
+   \   0000A7 CD ....      CALL      L:CLK_PeripheralClockConfig
+    282              LCD_GLASS_Init();
+   \   0000AA CD ....      CALL      L:LCD_GLASS_Init
+    283            }
+    284          
+    285            return (res>>3);
+   \                     ??ADC_Icc_Test_7:
+   \   0000AD BE ..        LDW       X, S:?w4
+   \   0000AF 54           SRLW      X
+   \   0000B0 54           SRLW      X
+   \   0000B1 54           SRLW      X
+   \   0000B2 CC ....      JP        L:?epilogue_l2
+    286          }
+    287          	
+    288          
+    289          /******************* (C) COPYRIGHT 2010 STMicroelectronics *****END OF FILE****/
+
+   Section sizes:
+
+   Bytes  Function/Label
+   -----  --------------
+      75  ADC_Icc_Init
+     181  ADC_Icc_Test
+     186  ADC_Supply
+      48  GPIO_LowPower_Config
+      45  Halt_Init
+
+ 
+ 535 bytes in section .near_func.text
+ 
+ 535 bytes of CODE memory
+
+Errors: none
+Warnings: none

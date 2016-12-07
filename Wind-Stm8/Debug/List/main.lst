@@ -1,0 +1,2297 @@
+###############################################################################
+#
+# IAR C/C++ Compiler V2.10.2.149 for STM8                 07/Dec/2016  10:10:35
+# Copyright 2010-2014 IAR Systems AB.
+#
+#    Source file  =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\main.c
+#    Command line =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\main.c -e
+#        -Ol --no_cse --no_unroll --no_inline --no_code_motion --no_tbaa
+#        --no_cross_call --debug --code_model small --data_model medium -o
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\Obj\ --dlib_config
+#        "C:\Program Files (x86)\IAR Systems\Embedded Workbench
+#        7.0\stm8\LIB\dlstm8smn.h" -D STM8L15X_MD -lCN
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\List\ --diag_suppress
+#        Pe177,Pe550 -I
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\inc\ -I
+#        F:\share\gitHub\windSensor\Wind-Stm8\Libraries\STM8L15x_StdPeriph_Driver\inc\
+#        --vregs 16
+#    List file    =  F:\share\gitHub\windSensor\Wind-Stm8\Debug\List\main.lst
+#    Object file  =  F:\share\gitHub\windSensor\Wind-Stm8\Debug\Obj\main.o
+#
+###############################################################################
+
+F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\main.c
+      1           /* Includes ------------------------------------------------------------------*/
+      2          #include "stm8l15x.h"
+      3          #include "stm8l_discovery_lcd.h"
+      4          #include "discover_board.h"
+      5          #include "icc_measure.h"
+      6          #include "discover_functions.h"
+      7          #include "board.h"
+      8          #include "main.h"
+      9          #include "CC1101.h"
+     10          #include "icc_measure.h"
+     11          
+     12          /*turn PWR */
+     13          #define PWR_On( )       GPIO_SetBits( GPIOB, GPIO_Pin_0 )
+     14          
+     15          /*turn PWR*/
+     16          #define PWR_Off( )       GPIO_ResetBits( GPIOB, GPIO_Pin_0 )
+     17          
+     18          
+     19          /*turn on the LED*/
+     20          #define LED_On( )       GPIO_SetBits( GPIOA, GPIO_Pin_2 )
+     21          
+     22          /*turn off the LED*/
+     23          #define LED_Off( )       GPIO_ResetBits( GPIOA, GPIO_Pin_2 )
+     24          
+     25          /*toggle the LED*/
+     26          #define LED_Toggle( )   GPIO_ToggleBits( GPIOA, GPIO_Pin_2 )
+     27          
+     28          //ASK RF SIGNAL REFERENCE
+     29          #define RF_GET_433 GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_2)
+     30          #define RF_GET_315 GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_3)
+     31          #define UP      GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_1)
+     32          #define DOWN    GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_2)
+     33          //#define		RF_MIN	321
+     34          //#define		RF_MAX	3942
+     35          #define		RF_MIN	4000 //2000
+     36          #define		RF_MAX	1000000
+     37          #define        VER        1
+
+   \                                 In section .near.bss, align 1
+     38          unsigned char RF_get[11];
+   \                     RF_get:
+   \   000000              DS8 11
+
+   \                                 In section .near.bss, align 1
+     39          uint8_t state_machine;
+   \                     state_machine:
+   \   000000              DS8 1
+
+   \                                 In section .near.bss, align 1
+     40          uint8_t state_irq;
+   \                     state_irq:
+   \   000000              DS8 1
+
+   \                                 In section .near.bss, align 1
+     41          INT32U *addr=0;
+   \                     addr:
+   \   000000              DS8 2
+     42          extern void delay_10us(u16 n_10us);
+     43          /* LCD bar graph: used for display active function */
+     44          extern uint8_t t_bar[2];
+     45          
+     46          extern bool Auto_test;
+
+   \                                 In section .near.data, align 1
+     47          INT8U txBuffer[11] = {0,1,2,3,4,5,6,7,8,9,10 }, rxBuffer[11];
+   \                     txBuffer:
+   \   000000 00 01 02 03  DC8 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+   \          04 05 06 07 
+
+   \                                 In section .near.bss, align 1
+   \                     rxBuffer:
+   \   000000              DS8 11
+     48          /* Set in interrupt handler for indicate that user button is pressed */ 
+     49          extern bool KeyPressed;
+
+   \                                 In section .near.bss, align 1
+     50          unsigned char	uart_tbuf[14];
+   \                     uart_tbuf:
+   \   000000              DS8 14
+     51          
+     52          
+
+   \                                 In section .near_func.text, align 1
+     53          void CRC_ENC()
+     54          {
+     55            INT8U i;
+     56            
+     57            txBuffer[0]=0xaa;
+   \                     CRC_ENC:
+   \   000000 35 AA ....   MOV       L:txBuffer, #0xaa
+     58            txBuffer[10]=0;
+   \   000004 35 00 ....   MOV       L:txBuffer + 10, #0x0
+     59            for(i=1;i<10;i++)
+   \   000008 35 01 ....   MOV       S:?b0, #0x1
+   \   00000C 20 14        JRA       L:??CRC_ENC_0
+     60                {
+     61                txBuffer[10]^=txBuffer[i];
+   \                     ??CRC_ENC_1:
+   \   00000E 5F           CLRW      X
+   \   00000F 41           EXG       A, XL
+   \   000010 B6 ..        LD        A, S:?b0
+   \   000012 41           EXG       A, XL
+   \   000013 D6 ....      LD        A, (L:txBuffer,X)
+   \   000016 C8 ....      XOR       A, L:txBuffer + 10
+   \   000019 C7 ....      LD        L:txBuffer + 10, A
+     62                }
+   \   00001C B6 ..        LD        A, S:?b0
+   \   00001E AB 01        ADD       A, #0x1
+   \   000020 B7 ..        LD        S:?b0, A
+   \                     ??CRC_ENC_0:
+   \   000022 B6 ..        LD        A, S:?b0
+   \   000024 A1 0A        CP        A, #0xa
+   \   000026 25 E6        JRC       L:??CRC_ENC_1
+     63            return ;
+   \   000028 81           RET
+     64          }
+
+   \                                 In section .near_func.text, align 1
+     65          INTERRUPT_HANDLER(EXTI1_IRQHandler,9)
+     66          {
+   \                     EXTI1_IRQHandler:
+   \                     _interrupt_11:
+   \   000000 8A           PUSH      CC
+   \   000001 84           POP       A
+   \   000002 A4 BF        AND       A, #0xbf
+   \   000004 88           PUSH      A
+   \   000005 86           POP       CC
+   \   000006 CD ....      CALL      L:?push_l0
+   \   000009 CD ....      CALL      L:?push_l1
+   \   00000C CD ....      CALL      L:?push_l2
+     67              uint32_t i=0;	
+   \   00000F 5F           CLRW      X
+   \   000010 BF ..        LDW       S:?w5, X
+   \   000012 BF ..        LDW       S:?w4, X
+     68              disableInterrupts();
+   \   000014 9B           sim
+     69              PWR_On();
+   \   000015 A6 01        LD        A, #0x1
+   \   000017 AE 5005      LDW       X, #0x5005
+   \   00001A CD ....      CALL      L:GPIO_SetBits
+     70              LED_On();
+   \   00001D A6 04        LD        A, #0x4
+   \   00001F AE 5000      LDW       X, #0x5000
+   \   000022 CD ....      CALL      L:GPIO_SetBits
+     71              //COMMAND
+     72              txBuffer[5]=0X10;
+   \   000025 35 10 ....   MOV       L:txBuffer + 5, #0x10
+     73              //DATA
+     74              if ((GPIOB->IDR & USER_GPIO_PIN) == 0x0) 
+   \   000029 7202 5006 06 BTJT      L:0x5006, #0x1, L:??EXTI1_IRQHandler_0
+     75              {
+     76                  txBuffer[6]=0XFF;
+   \   00002E 35 FF ....   MOV       L:txBuffer + 6, #0xff
+   \   000032 20 04        JRA       L:??EXTI1_IRQHandler_1
+     77              }
+     78              else
+     79              {
+     80                  txBuffer[6]=0X00;
+   \                     ??EXTI1_IRQHandler_0:
+   \   000034 35 00 ....   MOV       L:txBuffer + 6, #0x0
+     81              }    
+     82              txBuffer[7]=0X00;
+   \                     ??EXTI1_IRQHandler_1:
+   \   000038 35 00 ....   MOV       L:txBuffer + 7, #0x0
+     83              txBuffer[8]=0X00;
+   \   00003C 35 00 ....   MOV       L:txBuffer + 8, #0x0
+     84              txBuffer[9]=0X00;
+   \   000040 35 00 ....   MOV       L:txBuffer + 9, #0x0
+     85              txBuffer[10]=0Xaa;
+   \   000044 35 AA ....   MOV       L:txBuffer + 10, #0xaa
+     86              CRC_ENC();
+   \   000048 CD ....      CALL      L:CRC_ENC
+     87              CC1101SendPacket( txBuffer,11, ADDRESS_CHECK );
+   \   00004B 35 01 ....   MOV       S:?b0, #0x1
+   \   00004F A6 0B        LD        A, #0xb
+   \   000051 AE ....      LDW       X, #txBuffer
+   \   000054 CD ....      CALL      L:CC1101SendPacket
+     88            
+     89               EXTI_ClearITPendingBit(EXTI_IT_Pin1);	
+   \   000057 AE 0002      LDW       X, #0x2
+   \   00005A CD ....      CALL      L:EXTI_ClearITPendingBit
+     90               enableInterrupts();
+   \   00005D 9A           rim
+     91               LED_Off();
+   \   00005E A6 04        LD        A, #0x4
+   \   000060 AE 5000      LDW       X, #0x5000
+   \   000063 CD ....      CALL      L:GPIO_ResetBits
+     92              // PWR_Off();
+     93               state_irq++;
+   \   000066 C6 ....      LD        A, L:state_irq
+   \   000069 AB 01        ADD       A, #0x1
+   \   00006B C7 ....      LD        L:state_irq, A
+     94               return;
+   \   00006E CD ....      CALL      L:?pop_l2
+   \   000071 CD ....      CALL      L:?pop_l1
+   \   000074 CD ....      CALL      L:?pop_l0
+   \   000077 80           IRET
+     95          #if 0
+     96              /* User button pressed */
+     97             // KeyPressed = TRUE;
+     98              if ((GPIOB->IDR & USER_GPIO_PIN) == 0x0) 
+     99              {
+    100              /* If user button pressed 4 seconds (approx.) set autotest */
+    101              /* Autotest doesn't execute in Interrupt handler */
+    102              while ((GPIOB->IDR & USER_GPIO_PIN) == 0x0)
+    103              {
+    104                i++;
+    105                if (i == 0x011000)
+    106                {
+    107                  EXTI_ClearITPendingBit(EXTI_IT_Pin1);	
+    108                  enableInterrupts();
+    109                  return;
+    110                }
+    111              }
+    112              EXTI_ClearITPendingBit(EXTI_IT_Pin1);
+    113              enableInterrupts();
+    114            }
+    115          #endif
+    116          }
+    117          /**
+    118            * @brief  Reads one word from flash memory
+    119            * @param  Address : Address to read
+    120            * @retval Value of the byte
+    121            */
+
+   \                                 In section .near_func.text, align 1
+    122          uint32_t FLASH_ReadWord(uint32_t Address)
+    123          {
+   \                     FLASH_ReadWord:
+   \   000000 CD ....      CALL      L:?push_l2
+   \   000003 CD ....      CALL      L:?push_l3
+   \   000006 52 01        SUB       SP, #0x1
+   \   000008 CD ....      CALL      L:?mov_l3_l0
+    124              uint32_t    ret=0,addr;
+   \   00000B 5F           CLRW      X
+   \   00000C BF ..        LDW       S:?w5, X
+   \   00000E BF ..        LDW       S:?w4, X
+    125              uint8_t     data;
+    126              
+    127              FLASH_DeInit();
+   \   000010 CD ....      CALL      L:FLASH_DeInit
+    128              FLASH_Unlock(FLASH_MemType_Program);//FLASH_MemType_Data
+   \   000013 A6 FD        LD        A, #0xfd
+   \   000015 CD ....      CALL      L:FLASH_Unlock
+    129              while(FLASH_GetFlagStatus(FLASH_FLAG_PUL)==RESET);
+   \                     ??FLASH_ReadWord_0:
+   \   000018 A6 02        LD        A, #0x2
+   \   00001A CD ....      CALL      L:FLASH_GetFlagStatus
+   \   00001D A1 00        CP        A, #0x0
+   \   00001F 27 F7        JREQ      L:??FLASH_ReadWord_0
+    130               addr= Address;
+    131                
+    132              data=FLASH_ReadByte( addr++);
+   \   000021 CD ....      CALL      L:?mov_l0_l3
+   \   000024 CD ....      CALL      L:FLASH_ReadByte
+   \   000027 6B 01        LD        (0x1,SP), A
+   \   000029 CD ....      CALL      L:?inc32_l3_l3
+    133              FLASH_WaitForLastOperation(FLASH_MemType_Data);
+   \   00002C A6 F7        LD        A, #0xf7
+   \   00002E CD ....      CALL      L:FLASH_WaitForLastOperation
+    134              ret+=data;
+   \   000031 7B 01        LD        A, (0x1,SP)
+   \   000033 5F           CLRW      X
+   \   000034 97           LD        XL, A
+   \   000035 BF ..        LDW       S:?w3, X
+   \   000037 5F           CLRW      X
+   \   000038 BF ..        LDW       S:?w2, X
+   \   00003A CD ....      CALL      L:?mov_l0_l2
+   \   00003D CD ....      CALL      L:?add32_l0_l0_l1
+   \   000040 CD ....      CALL      L:?mov_l2_l0
+    135              data=FLASH_ReadByte( addr++);
+   \   000043 CD ....      CALL      L:?mov_l0_l3
+   \   000046 CD ....      CALL      L:FLASH_ReadByte
+   \   000049 6B 01        LD        (0x1,SP), A
+   \   00004B CD ....      CALL      L:?inc32_l3_l3
+    136              FLASH_WaitForLastOperation(FLASH_MemType_Data);
+   \   00004E A6 F7        LD        A, #0xf7
+   \   000050 CD ....      CALL      L:FLASH_WaitForLastOperation
+    137              ret<<=8;
+   \   000053 CD ....      CALL      L:?mov_l0_l2
+   \   000056 CD ....      CALL      L:?sll32_l0_l0_db
+   \   000059 08           DC8       0x8
+   \   00005A CD ....      CALL      L:?mov_l2_l0
+    138              ret+=data;
+   \   00005D 7B 01        LD        A, (0x1,SP)
+   \   00005F 5F           CLRW      X
+   \   000060 97           LD        XL, A
+   \   000061 BF ..        LDW       S:?w3, X
+   \   000063 5F           CLRW      X
+   \   000064 BF ..        LDW       S:?w2, X
+   \   000066 CD ....      CALL      L:?mov_l0_l2
+   \   000069 CD ....      CALL      L:?add32_l0_l0_l1
+   \   00006C CD ....      CALL      L:?mov_l2_l0
+    139              data=FLASH_ReadByte( addr++);
+   \   00006F CD ....      CALL      L:?mov_l0_l3
+   \   000072 CD ....      CALL      L:FLASH_ReadByte
+   \   000075 6B 01        LD        (0x1,SP), A
+   \   000077 CD ....      CALL      L:?inc32_l3_l3
+    140              FLASH_WaitForLastOperation(FLASH_MemType_Data);
+   \   00007A A6 F7        LD        A, #0xf7
+   \   00007C CD ....      CALL      L:FLASH_WaitForLastOperation
+    141              ret<<=8;
+   \   00007F CD ....      CALL      L:?mov_l0_l2
+   \   000082 CD ....      CALL      L:?sll32_l0_l0_db
+   \   000085 08           DC8       0x8
+   \   000086 CD ....      CALL      L:?mov_l2_l0
+    142              ret+=data;
+   \   000089 7B 01        LD        A, (0x1,SP)
+   \   00008B 5F           CLRW      X
+   \   00008C 97           LD        XL, A
+   \   00008D BF ..        LDW       S:?w3, X
+   \   00008F 5F           CLRW      X
+   \   000090 BF ..        LDW       S:?w2, X
+   \   000092 CD ....      CALL      L:?mov_l0_l2
+   \   000095 CD ....      CALL      L:?add32_l0_l0_l1
+   \   000098 CD ....      CALL      L:?mov_l2_l0
+    143              data=FLASH_ReadByte( addr);
+   \   00009B CD ....      CALL      L:?mov_l0_l3
+   \   00009E CD ....      CALL      L:FLASH_ReadByte
+   \   0000A1 6B 01        LD        (0x1,SP), A
+    144              FLASH_WaitForLastOperation(FLASH_MemType_Data);
+   \   0000A3 A6 F7        LD        A, #0xf7
+   \   0000A5 CD ....      CALL      L:FLASH_WaitForLastOperation
+    145              ret<<=8;
+   \   0000A8 CD ....      CALL      L:?mov_l0_l2
+   \   0000AB CD ....      CALL      L:?sll32_l0_l0_db
+   \   0000AE 08           DC8       0x8
+   \   0000AF CD ....      CALL      L:?mov_l2_l0
+    146              ret+=data;
+   \   0000B2 7B 01        LD        A, (0x1,SP)
+   \   0000B4 5F           CLRW      X
+   \   0000B5 97           LD        XL, A
+   \   0000B6 BF ..        LDW       S:?w1, X
+   \   0000B8 5F           CLRW      X
+   \   0000B9 BF ..        LDW       S:?w0, X
+   \   0000BB CD ....      CALL      L:?mov_l1_l2
+   \   0000BE CD ....      CALL      L:?add32_l0_l0_l1
+   \   0000C1 CD ....      CALL      L:?mov_l2_l0
+    147              FLASH_Lock(FLASH_MemType_Program);//FLASH_MemType_Data
+   \   0000C4 A6 FD        LD        A, #0xfd
+   \   0000C6 CD ....      CALL      L:FLASH_Lock
+    148            /* Read byte */
+    149            return ret;
+   \   0000C9 CD ....      CALL      L:?mov_l0_l2
+   \   0000CC 5B 01        ADD       SP, #0x1
+   \   0000CE CC ....      JP        L:?epilogue_l2_l3
+    150          }
+    151          /***********************************************
+    152          ************************************************/
+
+   \                                 In section .near_func.text, align 1
+    153          uint32_t get_UID(void)
+    154          {
+    155              uint32_t ret=0;
+   \                     get_UID:
+   \   000000 5F           CLRW      X
+   \   000001 BF ..        LDW       S:?w1, X
+   \   000003 BF ..        LDW       S:?w0, X
+    156              uint8_t data;
+    157              
+    158              data=*(uint8_t*)0x4926;//low x
+   \   000005 C6 4926      LD        A, L:0x4926
+   \   000008 B7 ..        LD        S:?b4, A
+    159              ret<<=8;
+   \   00000A CD ....      CALL      L:?sll32_l0_l0_db
+   \   00000D 08           DC8       0x8
+    160              ret+=data;
+   \   00000E 5F           CLRW      X
+   \   00000F 41           EXG       A, XL
+   \   000010 B6 ..        LD        A, S:?b4
+   \   000012 41           EXG       A, XL
+   \   000013 BF ..        LDW       S:?w3, X
+   \   000015 5F           CLRW      X
+   \   000016 BF ..        LDW       S:?w2, X
+   \   000018 CD ....      CALL      L:?add32_l0_l0_l1
+    161              data=*(uint8_t*)0x4928;//low y
+   \   00001B C6 4928      LD        A, L:0x4928
+   \   00001E B7 ..        LD        S:?b4, A
+    162              ret<<=8;
+   \   000020 CD ....      CALL      L:?sll32_l0_l0_db
+   \   000023 08           DC8       0x8
+    163              ret+=data;
+   \   000024 5F           CLRW      X
+   \   000025 41           EXG       A, XL
+   \   000026 B6 ..        LD        A, S:?b4
+   \   000028 41           EXG       A, XL
+   \   000029 BF ..        LDW       S:?w3, X
+   \   00002B 5F           CLRW      X
+   \   00002C BF ..        LDW       S:?w2, X
+   \   00002E CD ....      CALL      L:?add32_l0_l0_l1
+    164              data=*(uint8_t*)0x492a;//wafer
+   \   000031 C6 492A      LD        A, L:0x492a
+   \   000034 B7 ..        LD        S:?b4, A
+    165              ret<<=8;
+   \   000036 CD ....      CALL      L:?sll32_l0_l0_db
+   \   000039 08           DC8       0x8
+    166              ret+=data;
+   \   00003A 5F           CLRW      X
+   \   00003B 41           EXG       A, XL
+   \   00003C B6 ..        LD        A, S:?b4
+   \   00003E 41           EXG       A, XL
+   \   00003F BF ..        LDW       S:?w3, X
+   \   000041 5F           CLRW      X
+   \   000042 BF ..        LDW       S:?w2, X
+   \   000044 CD ....      CALL      L:?add32_l0_l0_l1
+    167              data=*(uint8_t*)0x492b;//lot
+   \   000047 C6 492B      LD        A, L:0x492b
+   \   00004A B7 ..        LD        S:?b4, A
+    168              ret<<=8;
+   \   00004C CD ....      CALL      L:?sll32_l0_l0_db
+   \   00004F 08           DC8       0x8
+    169              ret+=data;
+   \   000050 5F           CLRW      X
+   \   000051 41           EXG       A, XL
+   \   000052 B6 ..        LD        A, S:?b4
+   \   000054 41           EXG       A, XL
+   \   000055 BF ..        LDW       S:?w3, X
+   \   000057 5F           CLRW      X
+   \   000058 BF ..        LDW       S:?w2, X
+   \   00005A CC ....      JP        L:?add32_l0_l0_l1
+    170              return ret;
+    171          }
+
+   \                                 In section .near_func.text, align 1
+    172          void CLK_init(void)
+    173          {
+    174             CLK->CKDIVR=0x08;//内部16M的RC二分频后系统时钟为8M
+   \                     CLK_init:
+   \   000000 35 08 50C0   MOV       L:0x50c0, #0x8
+    175          }
+   \   000004 81           RET
+
+   \                                 In section .near_func.text, align 1
+    176          void UART_init(void)//Pc2RX,pc3TX
+    177          {
+    178             GPIOC->DDR&=~(1<<2);//输入
+   \                     UART_init:
+   \   000000 7215 500C    BRES      L:0x500c, #0x2
+    179             GPIOC->CR1|=(1<<2);//带上拉的输入
+   \   000004 7214 500D    BSET      L:0x500d, #0x2
+    180             GPIOC->DDR|=(1<<3);//输出
+   \   000008 7216 500C    BSET      L:0x500c, #0x3
+    181             GPIOC->CR1|=(1<<3);
+   \   00000C 7216 500D    BSET      L:0x500d, #0x3
+    182             CLK->PCKENR1|=0x20;//CLK_PCKENR1_USART1;//开启串口时钟
+   \   000010 721A 50C3    BSET      L:0x50c3, #0x5
+    183             USART1->BRR2=0x03;//设置波特率9600
+   \   000014 35 03 5233   MOV       L:0x5233, #0x3
+    184             USART1->BRR1=0x68;//16M/9600=0x683
+   \   000018 35 68 5232   MOV       L:0x5232, #0x68
+    185             USART1->CR2=0x2c;//允许接收中断，允许接收和发送
+   \   00001C 35 2C 5235   MOV       L:0x5235, #0x2c
+    186             USART1->CR3|=0x00;//停止位1，无奇偶效验
+   \   000020 C6 5236      LD        A, L:0x5236
+   \   000023 C7 5236      LD        L:0x5236, A
+    187          }
+   \   000026 81           RET
+    188           
+
+   \                                 In section .near_func.text, align 1
+    189          void UART_Send_Byte(unsigned char sendchar)
+    190          {
+    191               while (!(USART1->SR&USART_SR_TXE));    //等待发送寄存器为空         
+   \                     UART_Send_Byte:
+   \                     ??UART_Send_Byte_0:
+   \   000000 720F 5230 FB BTJF      L:0x5230, #0x7, L:??UART_Send_Byte_0
+    192               USART1->DR = sendchar; 
+   \   000005 C7 5231      LD        L:0x5231, A
+    193             
+    194          }
+   \   000008 81           RET
+    195           
+
+   \                                 In section .near_func.text, align 1
+    196          void UART_Send_Str(unsigned char *ptr)
+    197          {
+   \                     UART_Send_Str:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 BF ..        LDW       S:?w4, X
+   \   000005 20 0B        JRA       L:??UART_Send_Str_0
+    198                while(*ptr != '\0')
+    199                {
+    200                      UART_Send_Byte(*ptr++);                     // 发送数据
+   \                     ??UART_Send_Str_1:
+   \   000007 92C6 ..      LD        A, [S:?w4.w]
+   \   00000A CD ....      CALL      L:UART_Send_Byte
+   \   00000D BE ..        LDW       X, S:?w4
+   \   00000F 5C           INCW      X
+   \   000010 BF ..        LDW       S:?w4, X
+    201                }
+   \                     ??UART_Send_Str_0:
+   \   000012 923D ..      TNZ       [S:?w4.w]
+   \   000015 26 F0        JRNE      L:??UART_Send_Str_1
+    202                while (!(USART1->SR&USART_SR_TXE));    //等待发送寄存器为空
+   \                     ??UART_Send_Str_2:
+   \   000017 720F 5230 FB BTJF      L:0x5230, #0x7, L:??UART_Send_Str_2
+    203                USART1->DR = '\n';                              //发送换行指令
+   \   00001C 35 0A 5231   MOV       L:0x5231, #0xa
+    204          }
+   \   000020 CC ....      JP        L:?epilogue_w4
+
+   \                                 In section .near_func.text, align 1
+    205          void UartSendBuf(unsigned char * buf, unsigned char len)
+    206          {
+   \                     UartSendBuf:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 3B ....      PUSH      S:?b10
+   \   000006 BF ..        LDW       S:?w4, X
+   \   000008 B7 ..        LD        S:?b10, A
+   \   00000A 20 11        JRA       L:??UartSendBuf_0
+    207             while(len)
+    208             {
+    209                UART_Send_Byte(*buf++);
+   \                     ??UartSendBuf_1:
+   \   00000C 92C6 ..      LD        A, [S:?w4.w]
+   \   00000F CD ....      CALL      L:UART_Send_Byte
+   \   000012 BE ..        LDW       X, S:?w4
+   \   000014 5C           INCW      X
+   \   000015 BF ..        LDW       S:?w4, X
+    210                len--;
+   \   000017 B6 ..        LD        A, S:?b10
+   \   000019 AB FF        ADD       A, #0xff
+   \   00001B B7 ..        LD        S:?b10, A
+    211             }
+   \                     ??UartSendBuf_0:
+   \   00001D 3D ..        TNZ       S:?b10
+   \   00001F 26 EB        JRNE      L:??UartSendBuf_1
+    212          }
+   \   000021 32 ....      POP       S:?b10
+   \   000024 CC ....      JP        L:?epilogue_w4
+
+   \                                 In section .near_func.text, align 1
+    213          unsigned char get_rfdata_All_315()
+    214          {
+   \                     get_rfdata_All_315:
+   \   000000 CD ....      CALL      L:?push_l2
+   \   000003 CD ....      CALL      L:?push_l3
+   \   000006 52 11        SUB       SP, #0x11
+    215              unsigned char i,j;
+    216              unsigned char dat[3]={0};
+   \   000008 90AE ....    LDW       Y, #?_0
+   \   00000C 96           LDW       X, SP
+   \   00000D 1C 0005      ADDW      X, #0x5
+   \   000010 89           PUSHW     X
+   \   000011 A6 03        LD        A, #0x3
+   \   000013 CD ....      CALL      L:?move1616_v_x_y_a
+   \   000016 85           POPW      X
+    217              unsigned long  timer_counter=0;
+   \   000017 5F           CLRW      X
+   \   000018 BF ..        LDW       S:?w5, X
+   \   00001A BF ..        LDW       S:?w4, X
+    218              unsigned int   seek_long,seek_short;
+    219              unsigned char seek_sum1,seek_sum2;
+    220              unsigned int RF_X[5]={0x00,0x00,0x00,0x00,0x00};//Len_H,Len_L,Data_H,Data_L,Data_Vol;
+   \   00001C 90AE ....    LDW       Y, #?_1
+   \   000020 96           LDW       X, SP
+   \   000021 1C 0008      ADDW      X, #0x8
+   \   000024 89           PUSHW     X
+   \   000025 A6 0A        LD        A, #0xa
+   \   000027 CD ....      CALL      L:?move1616_v_x_y_a
+   \   00002A 85           POPW      X
+    221          
+    222              while(RF_GET_315!=0);
+   \                     ??get_rfdata_All_315_0:
+   \   00002B A6 08        LD        A, #0x8
+   \   00002D AE 5000      LDW       X, #0x5000
+   \   000030 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000033 A1 00        CP        A, #0x0
+   \   000035 26 F4        JRNE      L:??get_rfdata_All_315_0
+    223              {
+    224                      timer_counter=0; 
+   \   000037 5F           CLRW      X
+   \   000038 BF ..        LDW       S:?w5, X
+   \   00003A BF ..        LDW       S:?w4, X
+   \   00003C 20 03        JRA       L:??get_rfdata_All_315_1
+    225                      while(RF_GET_315==0)
+    226                      {
+    227                              timer_counter++;
+   \                     ??get_rfdata_All_315_2:
+   \   00003E CD ....      CALL      L:?inc32_l2_l2
+    228                              
+    229                      }
+   \                     ??get_rfdata_All_315_1:
+   \   000041 A6 08        LD        A, #0x8
+   \   000043 AE 5000      LDW       X, #0x5000
+   \   000046 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000049 A1 00        CP        A, #0x0
+   \   00004B 27 F1        JREQ      L:??get_rfdata_All_315_2
+    230                      if(RF_MIN< timer_counter && timer_counter<RF_MAX)
+   \   00004D CD ....      CALL      L:?mov_l0_l2
+   \   000050 CD ....      CALL      L:?sub32_l0_l0_dl
+   \   000053 00000FA1     DC32      0xfa1
+   \   000057 BE ..        LDW       X, S:?w0
+   \   000059 A3 000F      CPW       X, #0xf
+   \   00005C 26 05        JRNE      L:??get_rfdata_All_315_3
+   \   00005E BE ..        LDW       X, S:?w1
+   \   000060 A3 329F      CPW       X, #0x329f
+   \                     ??get_rfdata_All_315_3:
+   \   000063 25 03        JRC       ??lb_7
+   \   000065 CC ....      JP        L:??get_rfdata_All_315_4
+    231                      {
+    232                      seek_sum1=0;
+   \                     ??lb_7:
+   \   000068 3F ..        CLR       S:?b15
+    233                      seek_sum2=0;
+   \   00006A 3F ..        CLR       S:?b14
+    234                      seek_short=0;
+   \   00006C 5F           CLRW      X
+   \   00006D 1F 01        LDW       (0x1,SP), X
+    235                      seek_long=0;
+   \   00006F 5F           CLRW      X
+   \   000070 1F 03        LDW       (0x3,SP), X
+    236                      RF_X[2]= timer_counter/31;	  // 0
+   \   000072 CD ....      CALL      L:?mov_l0_l2
+   \   000075 CD ....      CALL      L:?udiv32_l0_l0_dl
+   \   000078 0000001F     DC32      0x1f
+   \   00007C BE ..        LDW       X, S:?w1
+   \   00007E 1F 0C        LDW       (0xc,SP), X
+    237                      RF_X[3]= RF_X[2]*3; 	  // 1
+   \   000080 16 0C        LDW       Y, (0xc,SP)
+   \   000082 AE 0003      LDW       X, #0x3
+   \   000085 BF ..        LDW       S:?w0, X
+   \   000087 93           LDW       X, Y
+   \   000088 CD ....      CALL      L:?mul16_x_x_w0
+   \   00008B 1F 0E        LDW       (0xe,SP), X
+    238                      RF_X[4]= RF_X[2]>>1;
+   \   00008D 1E 0C        LDW       X, (0xc,SP)
+   \   00008F 54           SRLW      X
+   \   000090 1F 10        LDW       (0x10,SP), X
+    239                      for(i=0;i<3;i++)
+   \   000092 3F ..        CLR       S:?b12
+   \   000094 20 06        JRA       L:??get_rfdata_All_315_5
+   \                     ??get_rfdata_All_315_6:
+   \   000096 B6 ..        LD        A, S:?b12
+   \   000098 AB 01        ADD       A, #0x1
+   \   00009A B7 ..        LD        S:?b12, A
+   \                     ??get_rfdata_All_315_5:
+   \   00009C B6 ..        LD        A, S:?b12
+   \   00009E A1 03        CP        A, #0x3
+   \   0000A0 25 03        JRC       ??lb_8
+   \   0000A2 CC ....      JP        L:??get_rfdata_All_315_7
+    240                          {
+    241                          for(j=0;j<8;j++)
+   \                     ??lb_8:
+   \   0000A5 3F ..        CLR       S:?b13
+   \   0000A7 20 4E        JRA       L:??get_rfdata_All_315_8
+    242                          {
+    243                          dat[i] = dat[i]<<1; 	
+    244                          timer_counter=0; 
+    245                          while(RF_GET_315!=0);
+    246                          do
+    247                          {
+    248                                  timer_counter++;
+    249                                  
+    250                          }	
+    251                          
+    252                          while(RF_GET_315==0);
+    253                          if(10< timer_counter && timer_counter <RF_X[2]+RF_X[4])
+   \                     ??get_rfdata_All_315_9:
+   \   0000A9 1E 10        LDW       X, (0x10,SP)
+   \   0000AB 72FB 0C      ADDW      X, (0xc,SP)
+   \   0000AE BF ..        LDW       S:?w3, X
+   \   0000B0 5F           CLRW      X
+   \   0000B1 BF ..        LDW       S:?w2, X
+   \   0000B3 CD ....      CALL      L:?mov_l0_l2
+   \   0000B6 CD ....      CALL      L:?ucmp32_c_l0_l1
+   \   0000B9 25 03        JRC       ??lb_9
+   \   0000BB CC ....      JP        L:??get_rfdata_All_315_10
+    254                                  {
+    255                                          dat[i] |= 0x01;
+   \                     ??lb_9:
+   \   0000BE 905F         CLRW      Y
+   \   0000C0 61           EXG       A, YL
+   \   0000C1 B6 ..        LD        A, S:?b12
+   \   0000C3 61           EXG       A, YL
+   \   0000C4 96           LDW       X, SP
+   \   0000C5 1C 0005      ADDW      X, #0x5
+   \   0000C8 90BF ..      LDW       S:?w0, Y
+   \   0000CB 72BB ....    ADDW      X, S:?w0
+   \   0000CF F6           LD        A, (X)
+   \   0000D0 AA 01        OR        A, #0x1
+   \   0000D2 905F         CLRW      Y
+   \   0000D4 61           EXG       A, YL
+   \   0000D5 B6 ..        LD        A, S:?b12
+   \   0000D7 61           EXG       A, YL
+   \   0000D8 96           LDW       X, SP
+   \   0000D9 1C 0005      ADDW      X, #0x5
+   \   0000DC 90BF ..      LDW       S:?w0, Y
+   \   0000DF 72BB ....    ADDW      X, S:?w0
+   \   0000E3 F7           LD        (X), A
+    256                                          seek_short+=timer_counter;
+   \   0000E4 BE ..        LDW       X, S:?w5
+   \   0000E6 72FB 01      ADDW      X, (0x1,SP)
+   \   0000E9 1F 01        LDW       (0x1,SP), X
+    257                                          seek_sum1++;
+   \   0000EB B6 ..        LD        A, S:?b15
+   \   0000ED AB 01        ADD       A, #0x1
+   \   0000EF B7 ..        LD        S:?b15, A
+    258                                          //dat[i] &=0xfe;
+    259                                  }
+   \                     ??get_rfdata_All_315_11:
+   \   0000F1 B6 ..        LD        A, S:?b13
+   \   0000F3 AB 01        ADD       A, #0x1
+   \   0000F5 B7 ..        LD        S:?b13, A
+   \                     ??get_rfdata_All_315_8:
+   \   0000F7 B6 ..        LD        A, S:?b13
+   \   0000F9 A1 08        CP        A, #0x8
+   \   0000FB 24 99        JRNC      L:??get_rfdata_All_315_6
+   \   0000FD 905F         CLRW      Y
+   \   0000FF 61           EXG       A, YL
+   \   000100 B6 ..        LD        A, S:?b12
+   \   000102 61           EXG       A, YL
+   \   000103 96           LDW       X, SP
+   \   000104 1C 0005      ADDW      X, #0x5
+   \   000107 90BF ..      LDW       S:?w0, Y
+   \   00010A 72BB ....    ADDW      X, S:?w0
+   \   00010E F6           LD        A, (X)
+   \   00010F 48           SLL       A
+   \   000110 905F         CLRW      Y
+   \   000112 61           EXG       A, YL
+   \   000113 B6 ..        LD        A, S:?b12
+   \   000115 61           EXG       A, YL
+   \   000116 96           LDW       X, SP
+   \   000117 1C 0005      ADDW      X, #0x5
+   \   00011A 90BF ..      LDW       S:?w0, Y
+   \   00011D 72BB ....    ADDW      X, S:?w0
+   \   000121 F7           LD        (X), A
+   \   000122 5F           CLRW      X
+   \   000123 BF ..        LDW       S:?w5, X
+   \   000125 BF ..        LDW       S:?w4, X
+   \                     ??get_rfdata_All_315_12:
+   \   000127 A6 08        LD        A, #0x8
+   \   000129 AE 5000      LDW       X, #0x5000
+   \   00012C CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   00012F A1 00        CP        A, #0x0
+   \   000131 26 F4        JRNE      L:??get_rfdata_All_315_12
+   \                     ??get_rfdata_All_315_13:
+   \   000133 CD ....      CALL      L:?inc32_l2_l2
+   \   000136 A6 08        LD        A, #0x8
+   \   000138 AE 5000      LDW       X, #0x5000
+   \   00013B CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   00013E A1 00        CP        A, #0x0
+   \   000140 27 F1        JREQ      L:??get_rfdata_All_315_13
+   \   000142 BE ..        LDW       X, S:?w4
+   \   000144 A3 0000      CPW       X, #0x0
+   \   000147 26 05        JRNE      L:??get_rfdata_All_315_14
+   \   000149 BE ..        LDW       X, S:?w5
+   \   00014B A3 000B      CPW       X, #0xb
+   \                     ??get_rfdata_All_315_14:
+   \   00014E 25 03        JRC       ??lb_10
+   \   000150 CC ....      JP        L:??get_rfdata_All_315_9
+    260                          else if(RF_X[2]+RF_X[4]< timer_counter && timer_counter<RF_X[3]+RF_X[4])
+   \                     ??lb_10:
+   \                     ??get_rfdata_All_315_10:
+   \   000153 1E 10        LDW       X, (0x10,SP)
+   \   000155 72FB 0C      ADDW      X, (0xc,SP)
+   \   000158 BF ..        LDW       S:?w1, X
+   \   00015A 5F           CLRW      X
+   \   00015B BF ..        LDW       S:?w0, X
+   \   00015D CD ....      CALL      L:?mov_l1_l2
+   \   000160 CD ....      CALL      L:?ucmp32_c_l0_l1
+   \   000163 24 48        JRNC      L:??get_rfdata_All_315_15
+   \   000165 1E 10        LDW       X, (0x10,SP)
+   \   000167 72FB 0E      ADDW      X, (0xe,SP)
+   \   00016A BF ..        LDW       S:?w3, X
+   \   00016C 5F           CLRW      X
+   \   00016D BF ..        LDW       S:?w2, X
+   \   00016F CD ....      CALL      L:?mov_l0_l2
+   \   000172 CD ....      CALL      L:?ucmp32_c_l0_l1
+   \   000175 24 36        JRNC      L:??get_rfdata_All_315_15
+    261                                  {
+    262                                          dat[i] &=0xfe;
+   \   000177 905F         CLRW      Y
+   \   000179 61           EXG       A, YL
+   \   00017A B6 ..        LD        A, S:?b12
+   \   00017C 61           EXG       A, YL
+   \   00017D 96           LDW       X, SP
+   \   00017E 1C 0005      ADDW      X, #0x5
+   \   000181 90BF ..      LDW       S:?w0, Y
+   \   000184 72BB ....    ADDW      X, S:?w0
+   \   000188 F6           LD        A, (X)
+   \   000189 A4 FE        AND       A, #0xfe
+   \   00018B 905F         CLRW      Y
+   \   00018D 61           EXG       A, YL
+   \   00018E B6 ..        LD        A, S:?b12
+   \   000190 61           EXG       A, YL
+   \   000191 96           LDW       X, SP
+   \   000192 1C 0005      ADDW      X, #0x5
+   \   000195 90BF ..      LDW       S:?w0, Y
+   \   000198 72BB ....    ADDW      X, S:?w0
+   \   00019C F7           LD        (X), A
+    263                                          seek_long+=timer_counter;
+   \   00019D BE ..        LDW       X, S:?w5
+   \   00019F 72FB 03      ADDW      X, (0x3,SP)
+   \   0001A2 1F 03        LDW       (0x3,SP), X
+    264                                          seek_sum2++;
+   \   0001A4 B6 ..        LD        A, S:?b14
+   \   0001A6 AB 01        ADD       A, #0x1
+   \   0001A8 B7 ..        LD        S:?b14, A
+   \   0001AA CC ....      JP        L:??get_rfdata_All_315_11
+    265                                          //dat[i] |= 0x01;
+    266                                  }
+    267                          else
+    268                                  {
+    269                                          return 0;
+   \                     ??get_rfdata_All_315_15:
+   \   0001AD 4F           CLR       A
+   \   0001AE 20 5D        JRA       L:??get_rfdata_All_315_16
+    270                                  }
+    271                          }
+    272                          }
+    273                      if(seek_sum1>0&&seek_sum2>0)
+   \                     ??get_rfdata_All_315_7:
+   \   0001B0 3D ..        TNZ       S:?b15
+   \   0001B2 27 1A        JREQ      L:??get_rfdata_All_315_17
+   \   0001B4 3D ..        TNZ       S:?b14
+   \   0001B6 27 16        JREQ      L:??get_rfdata_All_315_17
+    274                                      {
+    275                                      seek_short=seek_short/seek_sum1;
+   \   0001B8 905F         CLRW      Y
+   \   0001BA 61           EXG       A, YL
+   \   0001BB B6 ..        LD        A, S:?b15
+   \   0001BD 61           EXG       A, YL
+   \   0001BE 1E 01        LDW       X, (0x1,SP)
+   \   0001C0 65           DIVW      X, Y
+   \   0001C1 1F 01        LDW       (0x1,SP), X
+    276                                      seek_long=seek_long/seek_sum2;
+   \   0001C3 905F         CLRW      Y
+   \   0001C5 61           EXG       A, YL
+   \   0001C6 B6 ..        LD        A, S:?b14
+   \   0001C8 61           EXG       A, YL
+   \   0001C9 1E 03        LDW       X, (0x3,SP)
+   \   0001CB 65           DIVW      X, Y
+   \   0001CC 1F 03        LDW       (0x3,SP), X
+    277                                      }
+    278                      RF_get[0]=seek_short>>8;
+   \                     ??get_rfdata_All_315_17:
+   \   0001CE 1E 01        LDW       X, (0x1,SP)
+   \   0001D0 4F           CLR       A
+   \   0001D1 01           RRWA      X, A
+   \   0001D2 9F           LD        A, XL
+   \   0001D3 C7 ....      LD        L:RF_get, A
+    279                      RF_get[1]=seek_short;
+   \   0001D6 7B 02        LD        A, (0x2,SP)
+   \   0001D8 C7 ....      LD        L:RF_get + 1, A
+    280                      RF_get[2]=seek_long>>8;
+   \   0001DB 1E 03        LDW       X, (0x3,SP)
+   \   0001DD 4F           CLR       A
+   \   0001DE 01           RRWA      X, A
+   \   0001DF 9F           LD        A, XL
+   \   0001E0 C7 ....      LD        L:RF_get + 2, A
+    281                      RF_get[3]=seek_long;
+   \   0001E3 7B 04        LD        A, (0x4,SP)
+   \   0001E5 C7 ....      LD        L:RF_get + 3, A
+    282                      if(seek_short==0||seek_long==0)
+   \   0001E8 1E 01        LDW       X, (0x1,SP)
+   \   0001EA 5D           TNZW      X
+   \   0001EB 27 05        JREQ      L:??get_rfdata_All_315_18
+   \   0001ED 1E 03        LDW       X, (0x3,SP)
+   \   0001EF 5D           TNZW      X
+   \   0001F0 26 03        JRNE      L:??get_rfdata_All_315_19
+    283                      {
+    284                        return 0;
+   \                     ??get_rfdata_All_315_18:
+   \   0001F2 4F           CLR       A
+   \   0001F3 20 18        JRA       L:??get_rfdata_All_315_16
+    285                      }
+    286                      RF_get[4]=0xa0;
+   \                     ??get_rfdata_All_315_19:
+   \   0001F5 35 A0 ....   MOV       L:RF_get + 4, #0xa0
+    287                      RF_get[5]=dat[0];
+   \   0001F9 7B 05        LD        A, (0x5,SP)
+   \   0001FB C7 ....      LD        L:RF_get + 5, A
+    288                      RF_get[6]=dat[1];
+   \   0001FE 7B 06        LD        A, (0x6,SP)
+   \   000200 C7 ....      LD        L:RF_get + 6, A
+    289                      RF_get[7]=dat[2];
+   \   000203 7B 07        LD        A, (0x7,SP)
+   \   000205 C7 ....      LD        L:RF_get + 7, A
+    290                      return 1;	 //学习成功
+   \   000208 A6 01        LD        A, #0x1
+   \   00020A 20 01        JRA       L:??get_rfdata_All_315_16
+    291                      }
+    292              }
+    293              return 0;
+   \                     ??get_rfdata_All_315_4:
+   \   00020C 4F           CLR       A
+   \                     ??get_rfdata_All_315_16:
+   \   00020D 5B 11        ADD       SP, #0x11
+   \   00020F CC ....      JP        L:?epilogue_l2_l3
+    294          }
+
+   \                                 In section .near_func.text, align 1
+    295          unsigned char get_rfdata_All_433()
+    296          {
+   \                     get_rfdata_All_433:
+   \   000000 CD ....      CALL      L:?push_l2
+   \   000003 CD ....      CALL      L:?push_l3
+   \   000006 52 11        SUB       SP, #0x11
+    297              unsigned char i,j;
+    298              unsigned char dat[3]={0};
+   \   000008 90AE ....    LDW       Y, #?_2
+   \   00000C 96           LDW       X, SP
+   \   00000D 1C 0005      ADDW      X, #0x5
+   \   000010 89           PUSHW     X
+   \   000011 A6 03        LD        A, #0x3
+   \   000013 CD ....      CALL      L:?move1616_v_x_y_a
+   \   000016 85           POPW      X
+    299              unsigned long  timer_counter=0;
+   \   000017 5F           CLRW      X
+   \   000018 BF ..        LDW       S:?w5, X
+   \   00001A BF ..        LDW       S:?w4, X
+    300              unsigned int   seek_long,seek_short;
+    301              unsigned char seek_sum1,seek_sum2;
+    302              unsigned int RF_X[5]={0x00,0x00,0x00,0x00,0x00};//Len_H,Len_L,Data_H,Data_L,Data_Vol;
+   \   00001C 90AE ....    LDW       Y, #?_3
+   \   000020 96           LDW       X, SP
+   \   000021 1C 0008      ADDW      X, #0x8
+   \   000024 89           PUSHW     X
+   \   000025 A6 0A        LD        A, #0xa
+   \   000027 CD ....      CALL      L:?move1616_v_x_y_a
+   \   00002A 85           POPW      X
+    303          
+    304              while(RF_GET_433!=0);
+   \                     ??get_rfdata_All_433_0:
+   \   00002B A6 04        LD        A, #0x4
+   \   00002D AE 5000      LDW       X, #0x5000
+   \   000030 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000033 A1 00        CP        A, #0x0
+   \   000035 26 F4        JRNE      L:??get_rfdata_All_433_0
+    305              {
+    306                      timer_counter=0; 
+   \   000037 5F           CLRW      X
+   \   000038 BF ..        LDW       S:?w5, X
+   \   00003A BF ..        LDW       S:?w4, X
+   \   00003C 20 03        JRA       L:??get_rfdata_All_433_1
+    307                      while(RF_GET_433==0)
+    308                      {
+    309                              timer_counter++;
+   \                     ??get_rfdata_All_433_2:
+   \   00003E CD ....      CALL      L:?inc32_l2_l2
+    310          
+    311                      }
+   \                     ??get_rfdata_All_433_1:
+   \   000041 A6 04        LD        A, #0x4
+   \   000043 AE 5000      LDW       X, #0x5000
+   \   000046 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000049 A1 00        CP        A, #0x0
+   \   00004B 27 F1        JREQ      L:??get_rfdata_All_433_2
+    312                      if(RF_MIN< timer_counter && timer_counter<RF_MAX)
+   \   00004D CD ....      CALL      L:?mov_l0_l2
+   \   000050 CD ....      CALL      L:?sub32_l0_l0_dl
+   \   000053 00000FA1     DC32      0xfa1
+   \   000057 BE ..        LDW       X, S:?w0
+   \   000059 A3 000F      CPW       X, #0xf
+   \   00005C 26 05        JRNE      L:??get_rfdata_All_433_3
+   \   00005E BE ..        LDW       X, S:?w1
+   \   000060 A3 329F      CPW       X, #0x329f
+   \                     ??get_rfdata_All_433_3:
+   \   000063 25 03        JRC       ??lb_3
+   \   000065 CC ....      JP        L:??get_rfdata_All_433_4
+    313                      {
+    314                      seek_sum1=0;
+   \                     ??lb_3:
+   \   000068 3F ..        CLR       S:?b15
+    315                      seek_sum2=0;
+   \   00006A 3F ..        CLR       S:?b14
+    316                      seek_short=0;
+   \   00006C 5F           CLRW      X
+   \   00006D 1F 01        LDW       (0x1,SP), X
+    317                      seek_long=0;
+   \   00006F 5F           CLRW      X
+   \   000070 1F 03        LDW       (0x3,SP), X
+    318                      RF_X[2]= timer_counter/31;	  // 0
+   \   000072 CD ....      CALL      L:?mov_l0_l2
+   \   000075 CD ....      CALL      L:?udiv32_l0_l0_dl
+   \   000078 0000001F     DC32      0x1f
+   \   00007C BE ..        LDW       X, S:?w1
+   \   00007E 1F 0C        LDW       (0xc,SP), X
+    319                      RF_X[3]= RF_X[2]*3; 	  // 1
+   \   000080 16 0C        LDW       Y, (0xc,SP)
+   \   000082 AE 0003      LDW       X, #0x3
+   \   000085 BF ..        LDW       S:?w0, X
+   \   000087 93           LDW       X, Y
+   \   000088 CD ....      CALL      L:?mul16_x_x_w0
+   \   00008B 1F 0E        LDW       (0xe,SP), X
+    320                      RF_X[4]= RF_X[2]>>1;
+   \   00008D 1E 0C        LDW       X, (0xc,SP)
+   \   00008F 54           SRLW      X
+   \   000090 1F 10        LDW       (0x10,SP), X
+    321                              for(i=0;i<3;i++)
+   \   000092 3F ..        CLR       S:?b12
+   \   000094 20 06        JRA       L:??get_rfdata_All_433_5
+   \                     ??get_rfdata_All_433_6:
+   \   000096 B6 ..        LD        A, S:?b12
+   \   000098 AB 01        ADD       A, #0x1
+   \   00009A B7 ..        LD        S:?b12, A
+   \                     ??get_rfdata_All_433_5:
+   \   00009C B6 ..        LD        A, S:?b12
+   \   00009E A1 03        CP        A, #0x3
+   \   0000A0 25 03        JRC       ??lb_4
+   \   0000A2 CC ....      JP        L:??get_rfdata_All_433_7
+    322                                      {
+    323                                      for(j=0;j<8;j++)
+   \                     ??lb_4:
+   \   0000A5 3F ..        CLR       S:?b13
+   \   0000A7 20 4E        JRA       L:??get_rfdata_All_433_8
+    324                                      {
+    325                                      dat[i] = dat[i]<<1; 	
+    326                                      timer_counter=0; 
+    327                                      while(RF_GET_433!=0);
+    328                                      do
+    329                                      {
+    330                                              timer_counter++;
+    331                                              
+    332                                      }	
+    333                                      
+    334                                      while(RF_GET_433==0);
+    335                                      if(10< timer_counter && timer_counter <RF_X[2]+RF_X[4])
+   \                     ??get_rfdata_All_433_9:
+   \   0000A9 1E 10        LDW       X, (0x10,SP)
+   \   0000AB 72FB 0C      ADDW      X, (0xc,SP)
+   \   0000AE BF ..        LDW       S:?w3, X
+   \   0000B0 5F           CLRW      X
+   \   0000B1 BF ..        LDW       S:?w2, X
+   \   0000B3 CD ....      CALL      L:?mov_l0_l2
+   \   0000B6 CD ....      CALL      L:?ucmp32_c_l0_l1
+   \   0000B9 25 03        JRC       ??lb_5
+   \   0000BB CC ....      JP        L:??get_rfdata_All_433_10
+    336                                              {
+    337                                                      dat[i] |= 0x01;
+   \                     ??lb_5:
+   \   0000BE 905F         CLRW      Y
+   \   0000C0 61           EXG       A, YL
+   \   0000C1 B6 ..        LD        A, S:?b12
+   \   0000C3 61           EXG       A, YL
+   \   0000C4 96           LDW       X, SP
+   \   0000C5 1C 0005      ADDW      X, #0x5
+   \   0000C8 90BF ..      LDW       S:?w0, Y
+   \   0000CB 72BB ....    ADDW      X, S:?w0
+   \   0000CF F6           LD        A, (X)
+   \   0000D0 AA 01        OR        A, #0x1
+   \   0000D2 905F         CLRW      Y
+   \   0000D4 61           EXG       A, YL
+   \   0000D5 B6 ..        LD        A, S:?b12
+   \   0000D7 61           EXG       A, YL
+   \   0000D8 96           LDW       X, SP
+   \   0000D9 1C 0005      ADDW      X, #0x5
+   \   0000DC 90BF ..      LDW       S:?w0, Y
+   \   0000DF 72BB ....    ADDW      X, S:?w0
+   \   0000E3 F7           LD        (X), A
+    338                                                      seek_short+=timer_counter;
+   \   0000E4 BE ..        LDW       X, S:?w5
+   \   0000E6 72FB 01      ADDW      X, (0x1,SP)
+   \   0000E9 1F 01        LDW       (0x1,SP), X
+    339                                                      seek_sum1++;
+   \   0000EB B6 ..        LD        A, S:?b15
+   \   0000ED AB 01        ADD       A, #0x1
+   \   0000EF B7 ..        LD        S:?b15, A
+    340                                                      //dat[i] &=0xfe;
+    341                                              }
+   \                     ??get_rfdata_All_433_11:
+   \   0000F1 B6 ..        LD        A, S:?b13
+   \   0000F3 AB 01        ADD       A, #0x1
+   \   0000F5 B7 ..        LD        S:?b13, A
+   \                     ??get_rfdata_All_433_8:
+   \   0000F7 B6 ..        LD        A, S:?b13
+   \   0000F9 A1 08        CP        A, #0x8
+   \   0000FB 24 99        JRNC      L:??get_rfdata_All_433_6
+   \   0000FD 905F         CLRW      Y
+   \   0000FF 61           EXG       A, YL
+   \   000100 B6 ..        LD        A, S:?b12
+   \   000102 61           EXG       A, YL
+   \   000103 96           LDW       X, SP
+   \   000104 1C 0005      ADDW      X, #0x5
+   \   000107 90BF ..      LDW       S:?w0, Y
+   \   00010A 72BB ....    ADDW      X, S:?w0
+   \   00010E F6           LD        A, (X)
+   \   00010F 48           SLL       A
+   \   000110 905F         CLRW      Y
+   \   000112 61           EXG       A, YL
+   \   000113 B6 ..        LD        A, S:?b12
+   \   000115 61           EXG       A, YL
+   \   000116 96           LDW       X, SP
+   \   000117 1C 0005      ADDW      X, #0x5
+   \   00011A 90BF ..      LDW       S:?w0, Y
+   \   00011D 72BB ....    ADDW      X, S:?w0
+   \   000121 F7           LD        (X), A
+   \   000122 5F           CLRW      X
+   \   000123 BF ..        LDW       S:?w5, X
+   \   000125 BF ..        LDW       S:?w4, X
+   \                     ??get_rfdata_All_433_12:
+   \   000127 A6 04        LD        A, #0x4
+   \   000129 AE 5000      LDW       X, #0x5000
+   \   00012C CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   00012F A1 00        CP        A, #0x0
+   \   000131 26 F4        JRNE      L:??get_rfdata_All_433_12
+   \                     ??get_rfdata_All_433_13:
+   \   000133 CD ....      CALL      L:?inc32_l2_l2
+   \   000136 A6 04        LD        A, #0x4
+   \   000138 AE 5000      LDW       X, #0x5000
+   \   00013B CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   00013E A1 00        CP        A, #0x0
+   \   000140 27 F1        JREQ      L:??get_rfdata_All_433_13
+   \   000142 BE ..        LDW       X, S:?w4
+   \   000144 A3 0000      CPW       X, #0x0
+   \   000147 26 05        JRNE      L:??get_rfdata_All_433_14
+   \   000149 BE ..        LDW       X, S:?w5
+   \   00014B A3 000B      CPW       X, #0xb
+   \                     ??get_rfdata_All_433_14:
+   \   00014E 25 03        JRC       ??lb_6
+   \   000150 CC ....      JP        L:??get_rfdata_All_433_9
+    342                                      else if(RF_X[2]+RF_X[4]< timer_counter && timer_counter<RF_X[3]+RF_X[4])
+   \                     ??lb_6:
+   \                     ??get_rfdata_All_433_10:
+   \   000153 1E 10        LDW       X, (0x10,SP)
+   \   000155 72FB 0C      ADDW      X, (0xc,SP)
+   \   000158 BF ..        LDW       S:?w1, X
+   \   00015A 5F           CLRW      X
+   \   00015B BF ..        LDW       S:?w0, X
+   \   00015D CD ....      CALL      L:?mov_l1_l2
+   \   000160 CD ....      CALL      L:?ucmp32_c_l0_l1
+   \   000163 24 48        JRNC      L:??get_rfdata_All_433_15
+   \   000165 1E 10        LDW       X, (0x10,SP)
+   \   000167 72FB 0E      ADDW      X, (0xe,SP)
+   \   00016A BF ..        LDW       S:?w3, X
+   \   00016C 5F           CLRW      X
+   \   00016D BF ..        LDW       S:?w2, X
+   \   00016F CD ....      CALL      L:?mov_l0_l2
+   \   000172 CD ....      CALL      L:?ucmp32_c_l0_l1
+   \   000175 24 36        JRNC      L:??get_rfdata_All_433_15
+    343                                              {
+    344                                                      dat[i] &=0xfe;
+   \   000177 905F         CLRW      Y
+   \   000179 61           EXG       A, YL
+   \   00017A B6 ..        LD        A, S:?b12
+   \   00017C 61           EXG       A, YL
+   \   00017D 96           LDW       X, SP
+   \   00017E 1C 0005      ADDW      X, #0x5
+   \   000181 90BF ..      LDW       S:?w0, Y
+   \   000184 72BB ....    ADDW      X, S:?w0
+   \   000188 F6           LD        A, (X)
+   \   000189 A4 FE        AND       A, #0xfe
+   \   00018B 905F         CLRW      Y
+   \   00018D 61           EXG       A, YL
+   \   00018E B6 ..        LD        A, S:?b12
+   \   000190 61           EXG       A, YL
+   \   000191 96           LDW       X, SP
+   \   000192 1C 0005      ADDW      X, #0x5
+   \   000195 90BF ..      LDW       S:?w0, Y
+   \   000198 72BB ....    ADDW      X, S:?w0
+   \   00019C F7           LD        (X), A
+    345                                                      seek_long+=timer_counter;
+   \   00019D BE ..        LDW       X, S:?w5
+   \   00019F 72FB 03      ADDW      X, (0x3,SP)
+   \   0001A2 1F 03        LDW       (0x3,SP), X
+    346                                                      seek_sum2++;
+   \   0001A4 B6 ..        LD        A, S:?b14
+   \   0001A6 AB 01        ADD       A, #0x1
+   \   0001A8 B7 ..        LD        S:?b14, A
+   \   0001AA CC ....      JP        L:??get_rfdata_All_433_11
+    347                                                      //dat[i] |= 0x01;
+    348                                              }
+    349                                      else
+    350                                              {
+    351                                                      return 0;
+   \                     ??get_rfdata_All_433_15:
+   \   0001AD 4F           CLR       A
+   \   0001AE 20 5D        JRA       L:??get_rfdata_All_433_16
+    352                                              }
+    353                                      }
+    354                                      }
+    355                      if(seek_sum1>0&&seek_sum2>0)
+   \                     ??get_rfdata_All_433_7:
+   \   0001B0 3D ..        TNZ       S:?b15
+   \   0001B2 27 1A        JREQ      L:??get_rfdata_All_433_17
+   \   0001B4 3D ..        TNZ       S:?b14
+   \   0001B6 27 16        JREQ      L:??get_rfdata_All_433_17
+    356                                      {
+    357                                      seek_short=seek_short/seek_sum1;
+   \   0001B8 905F         CLRW      Y
+   \   0001BA 61           EXG       A, YL
+   \   0001BB B6 ..        LD        A, S:?b15
+   \   0001BD 61           EXG       A, YL
+   \   0001BE 1E 01        LDW       X, (0x1,SP)
+   \   0001C0 65           DIVW      X, Y
+   \   0001C1 1F 01        LDW       (0x1,SP), X
+    358                                      seek_long=seek_long/seek_sum2;
+   \   0001C3 905F         CLRW      Y
+   \   0001C5 61           EXG       A, YL
+   \   0001C6 B6 ..        LD        A, S:?b14
+   \   0001C8 61           EXG       A, YL
+   \   0001C9 1E 03        LDW       X, (0x3,SP)
+   \   0001CB 65           DIVW      X, Y
+   \   0001CC 1F 03        LDW       (0x3,SP), X
+    359                                      }
+    360                      RF_get[0]=seek_short>>8;
+   \                     ??get_rfdata_All_433_17:
+   \   0001CE 1E 01        LDW       X, (0x1,SP)
+   \   0001D0 4F           CLR       A
+   \   0001D1 01           RRWA      X, A
+   \   0001D2 9F           LD        A, XL
+   \   0001D3 C7 ....      LD        L:RF_get, A
+    361                      RF_get[1]=seek_short;
+   \   0001D6 7B 02        LD        A, (0x2,SP)
+   \   0001D8 C7 ....      LD        L:RF_get + 1, A
+    362                      RF_get[2]=seek_long>>8;
+   \   0001DB 1E 03        LDW       X, (0x3,SP)
+   \   0001DD 4F           CLR       A
+   \   0001DE 01           RRWA      X, A
+   \   0001DF 9F           LD        A, XL
+   \   0001E0 C7 ....      LD        L:RF_get + 2, A
+    363                      RF_get[3]=seek_long;
+   \   0001E3 7B 04        LD        A, (0x4,SP)
+   \   0001E5 C7 ....      LD        L:RF_get + 3, A
+    364                      if(seek_short==0||seek_long==0)
+   \   0001E8 1E 01        LDW       X, (0x1,SP)
+   \   0001EA 5D           TNZW      X
+   \   0001EB 27 05        JREQ      L:??get_rfdata_All_433_18
+   \   0001ED 1E 03        LDW       X, (0x3,SP)
+   \   0001EF 5D           TNZW      X
+   \   0001F0 26 03        JRNE      L:??get_rfdata_All_433_19
+    365                      {
+    366                        return 0;
+   \                     ??get_rfdata_All_433_18:
+   \   0001F2 4F           CLR       A
+   \   0001F3 20 18        JRA       L:??get_rfdata_All_433_16
+    367                      }
+    368                      RF_get[4]=0xa0;
+   \                     ??get_rfdata_All_433_19:
+   \   0001F5 35 A0 ....   MOV       L:RF_get + 4, #0xa0
+    369                      RF_get[5]=dat[0];
+   \   0001F9 7B 05        LD        A, (0x5,SP)
+   \   0001FB C7 ....      LD        L:RF_get + 5, A
+    370                      RF_get[6]=dat[1];
+   \   0001FE 7B 06        LD        A, (0x6,SP)
+   \   000200 C7 ....      LD        L:RF_get + 6, A
+    371                      RF_get[7]=dat[2];
+   \   000203 7B 07        LD        A, (0x7,SP)
+   \   000205 C7 ....      LD        L:RF_get + 7, A
+    372                      return 1;	 //学习成功
+   \   000208 A6 01        LD        A, #0x1
+   \   00020A 20 01        JRA       L:??get_rfdata_All_433_16
+    373                      }
+    374              }
+    375              return 0;
+   \                     ??get_rfdata_All_433_4:
+   \   00020C 4F           CLR       A
+   \                     ??get_rfdata_All_433_16:
+   \   00020D 5B 11        ADD       SP, #0x11
+   \   00020F CC ....      JP        L:?epilogue_l2_l3
+    376          }
+
+   \                                 In section .near_func.text, align 1
+    377          void delayled(INT8U cnt)
+    378          {
+   \                     delayled:
+   \   000000 B7 ..        LD        S:?b1, A
+    379              INT8U i,j;
+    380               for(i=0;i<cnt;i++)
+   \   000002 3F ..        CLR       S:?b0
+   \   000004 20 0C        JRA       L:??delayled_0
+    381                    for(j=0;j<0xff;j++);
+   \                     ??delayled_1:
+   \   000006 AB 01        ADD       A, #0x1
+   \                     ??delayled_2:
+   \   000008 A1 FF        CP        A, #0xff
+   \   00000A 26 FA        JRNE      L:??delayled_1
+   \   00000C B6 ..        LD        A, S:?b0
+   \   00000E AB 01        ADD       A, #0x1
+   \   000010 B7 ..        LD        S:?b0, A
+   \                     ??delayled_0:
+   \   000012 B6 ..        LD        A, S:?b0
+   \   000014 B1 ..        CP        A, S:?b1
+   \   000016 24 03        JRNC      L:??delayled_3
+   \   000018 4F           CLR       A
+   \   000019 20 ED        JRA       L:??delayled_2
+    382               for(i=0;i<cnt;i++)
+   \                     ??delayled_3:
+   \   00001B 3F ..        CLR       S:?b0
+   \   00001D 20 0C        JRA       L:??delayled_4
+    383                    for(j=0;j<0xff;j++);
+   \                     ??delayled_5:
+   \   00001F AB 01        ADD       A, #0x1
+   \                     ??delayled_6:
+   \   000021 A1 FF        CP        A, #0xff
+   \   000023 26 FA        JRNE      L:??delayled_5
+   \   000025 B6 ..        LD        A, S:?b0
+   \   000027 AB 01        ADD       A, #0x1
+   \   000029 B7 ..        LD        S:?b0, A
+   \                     ??delayled_4:
+   \   00002B B6 ..        LD        A, S:?b0
+   \   00002D B1 ..        CP        A, S:?b1
+   \   00002F 24 03        JRNC      L:??delayled_7
+   \   000031 4F           CLR       A
+   \   000032 20 ED        JRA       L:??delayled_6
+    384               for(i=0;i<cnt;i++)
+   \                     ??delayled_7:
+   \   000034 3F ..        CLR       S:?b0
+   \   000036 20 0C        JRA       L:??delayled_8
+    385                    for(j=0;j<0xff;j++);
+   \                     ??delayled_9:
+   \   000038 AB 01        ADD       A, #0x1
+   \                     ??delayled_10:
+   \   00003A A1 FF        CP        A, #0xff
+   \   00003C 26 FA        JRNE      L:??delayled_9
+   \   00003E B6 ..        LD        A, S:?b0
+   \   000040 AB 01        ADD       A, #0x1
+   \   000042 B7 ..        LD        S:?b0, A
+   \                     ??delayled_8:
+   \   000044 B6 ..        LD        A, S:?b0
+   \   000046 B1 ..        CP        A, S:?b1
+   \   000048 24 03        JRNC      L:??delayled_11
+   \   00004A 4F           CLR       A
+   \   00004B 20 ED        JRA       L:??delayled_10
+    386               for(i=0;i<cnt;i++)
+   \                     ??delayled_11:
+   \   00004D 3F ..        CLR       S:?b0
+   \   00004F 20 0C        JRA       L:??delayled_12
+    387                    for(j=0;j<0xff;j++);
+   \                     ??delayled_13:
+   \   000051 AB 01        ADD       A, #0x1
+   \                     ??delayled_14:
+   \   000053 A1 FF        CP        A, #0xff
+   \   000055 26 FA        JRNE      L:??delayled_13
+   \   000057 B6 ..        LD        A, S:?b0
+   \   000059 AB 01        ADD       A, #0x1
+   \   00005B B7 ..        LD        S:?b0, A
+   \                     ??delayled_12:
+   \   00005D B6 ..        LD        A, S:?b0
+   \   00005F B1 ..        CP        A, S:?b1
+   \   000061 24 03        JRNC      L:??delayled_15
+   \   000063 4F           CLR       A
+   \   000064 20 ED        JRA       L:??delayled_14
+    388               for(i=0;i<cnt;i++)
+   \                     ??delayled_15:
+   \   000066 3F ..        CLR       S:?b0
+   \   000068 20 0C        JRA       L:??delayled_16
+    389                   for(j=0;j<0xff;j++);
+   \                     ??delayled_17:
+   \   00006A AB 01        ADD       A, #0x1
+   \                     ??delayled_18:
+   \   00006C A1 FF        CP        A, #0xff
+   \   00006E 26 FA        JRNE      L:??delayled_17
+   \   000070 B6 ..        LD        A, S:?b0
+   \   000072 AB 01        ADD       A, #0x1
+   \   000074 B7 ..        LD        S:?b0, A
+   \                     ??delayled_16:
+   \   000076 B6 ..        LD        A, S:?b0
+   \   000078 B1 ..        CP        A, S:?b1
+   \   00007A 24 03        JRNC      L:??delayled_19
+   \   00007C 4F           CLR       A
+   \   00007D 20 ED        JRA       L:??delayled_18
+    390               for(i=0;i<cnt;i++)
+   \                     ??delayled_19:
+   \   00007F 3F ..        CLR       S:?b0
+   \   000081 20 0C        JRA       L:??delayled_20
+    391                   for(j=0;j<0xff;j++);
+   \                     ??delayled_21:
+   \   000083 AB 01        ADD       A, #0x1
+   \                     ??delayled_22:
+   \   000085 A1 FF        CP        A, #0xff
+   \   000087 26 FA        JRNE      L:??delayled_21
+   \   000089 B6 ..        LD        A, S:?b0
+   \   00008B AB 01        ADD       A, #0x1
+   \   00008D B7 ..        LD        S:?b0, A
+   \                     ??delayled_20:
+   \   00008F B6 ..        LD        A, S:?b0
+   \   000091 B1 ..        CP        A, S:?b1
+   \   000093 24 03        JRNC      L:??delayled_23
+   \   000095 4F           CLR       A
+   \   000096 20 ED        JRA       L:??delayled_22
+    392               for(i=0;i<cnt;i++)
+   \                     ??delayled_23:
+   \   000098 3F ..        CLR       S:?b0
+   \   00009A 20 0C        JRA       L:??delayled_24
+    393                   for(j=0;j<0xff;j++);
+   \                     ??delayled_25:
+   \   00009C AB 01        ADD       A, #0x1
+   \                     ??delayled_26:
+   \   00009E A1 FF        CP        A, #0xff
+   \   0000A0 26 FA        JRNE      L:??delayled_25
+   \   0000A2 B6 ..        LD        A, S:?b0
+   \   0000A4 AB 01        ADD       A, #0x1
+   \   0000A6 B7 ..        LD        S:?b0, A
+   \                     ??delayled_24:
+   \   0000A8 B6 ..        LD        A, S:?b0
+   \   0000AA B1 ..        CP        A, S:?b1
+   \   0000AC 24 03        JRNC      L:??delayled_27
+   \   0000AE 4F           CLR       A
+   \   0000AF 20 ED        JRA       L:??delayled_26
+    394               for(i=0;i<cnt;i++)
+   \                     ??delayled_27:
+   \   0000B1 3F ..        CLR       S:?b0
+   \   0000B3 20 0C        JRA       L:??delayled_28
+    395                   for(j=0;j<0xff;j++);
+   \                     ??delayled_29:
+   \   0000B5 AB 01        ADD       A, #0x1
+   \                     ??delayled_30:
+   \   0000B7 A1 FF        CP        A, #0xff
+   \   0000B9 26 FA        JRNE      L:??delayled_29
+   \   0000BB B6 ..        LD        A, S:?b0
+   \   0000BD AB 01        ADD       A, #0x1
+   \   0000BF B7 ..        LD        S:?b0, A
+   \                     ??delayled_28:
+   \   0000C1 B6 ..        LD        A, S:?b0
+   \   0000C3 B1 ..        CP        A, S:?b1
+   \   0000C5 24 03        JRNC      L:??delayled_31
+   \   0000C7 4F           CLR       A
+   \   0000C8 20 ED        JRA       L:??delayled_30
+    396               for(i=0;i<cnt;i++)
+   \                     ??delayled_31:
+   \   0000CA 3F ..        CLR       S:?b0
+   \   0000CC 20 0C        JRA       L:??delayled_32
+    397                   for(j=0;j<0xff;j++);
+   \                     ??delayled_33:
+   \   0000CE AB 01        ADD       A, #0x1
+   \                     ??delayled_34:
+   \   0000D0 A1 FF        CP        A, #0xff
+   \   0000D2 26 FA        JRNE      L:??delayled_33
+   \   0000D4 B6 ..        LD        A, S:?b0
+   \   0000D6 AB 01        ADD       A, #0x1
+   \   0000D8 B7 ..        LD        S:?b0, A
+   \                     ??delayled_32:
+   \   0000DA B6 ..        LD        A, S:?b0
+   \   0000DC B1 ..        CP        A, S:?b1
+   \   0000DE 24 03        JRNC      L:??delayled_35
+   \   0000E0 4F           CLR       A
+   \   0000E1 20 ED        JRA       L:??delayled_34
+    398          
+    399          
+    400          }
+   \                     ??delayled_35:
+   \   0000E3 81           RET
+
+   \                                 In section .near_func.text, align 1
+    401          void ledBlink(INT8U cnt)
+    402          {
+   \                     ledBlink:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 B7 ..        LD        S:?b9, A
+    403            INT8U i;
+    404            for(i=0;i<cnt;i++)
+   \   000005 3F ..        CLR       S:?b8
+   \   000007 20 20        JRA       L:??ledBlink_0
+    405            {
+    406                GPIO_SetBits( GPIOB, GPIO_Pin_0 );
+   \                     ??ledBlink_1:
+   \   000009 A6 01        LD        A, #0x1
+   \   00000B AE 5005      LDW       X, #0x5005
+   \   00000E CD ....      CALL      L:GPIO_SetBits
+    407                delayled(250);
+   \   000011 A6 FA        LD        A, #0xfa
+   \   000013 CD ....      CALL      L:delayled
+    408                GPIO_ResetBits( GPIOB, GPIO_Pin_0 );
+   \   000016 A6 01        LD        A, #0x1
+   \   000018 AE 5005      LDW       X, #0x5005
+   \   00001B CD ....      CALL      L:GPIO_ResetBits
+    409                delayled(250);
+   \   00001E A6 FA        LD        A, #0xfa
+   \   000020 CD ....      CALL      L:delayled
+    410            
+    411            }
+   \   000023 B6 ..        LD        A, S:?b8
+   \   000025 AB 01        ADD       A, #0x1
+   \   000027 B7 ..        LD        S:?b8, A
+   \                     ??ledBlink_0:
+   \   000029 B6 ..        LD        A, S:?b8
+   \   00002B B1 ..        CP        A, S:?b9
+   \   00002D 25 DA        JRC       L:??ledBlink_1
+    412          
+    413          }
+   \   00002F CC ....      JP        L:?epilogue_w4
+    414          #define		SEND_RF_TIMES	10
+    415          #define	RF_H 	GPIO_SetBits(GPIOB,GPIO_Pin_3)
+    416          #define RF_L 	GPIO_ResetBits(GPIOB,GPIO_Pin_3)
+    417          #define		POINT	15
+
+   \                                 In section .near_func.text, align 1
+    418          unsigned char send_rfdata_All(unsigned char *inp)
+    419          {
+   \                     send_rfdata_All:
+   \   000000 CD ....      CALL      L:?push_l2
+   \   000003 CD ....      CALL      L:?push_l3
+   \   000006 52 0C        SUB       SP, #0xc
+   \   000008 BF ..        LDW       S:?w3, X
+    420          	unsigned char i,j,cnt,t;
+    421          	unsigned char *dat;
+    422          	unsigned int  time_len=0;
+   \   00000A 3F ..        CLR       S:?b13
+   \   00000C 3F ..        CLR       S:?b12
+    423          	unsigned char data=0;
+   \   00000E 3F ..        CLR       S:?b10
+    424          	unsigned int  seekii_counter=0;
+   \   000010 3F ..        CLR       S:?b5
+   \   000012 3F ..        CLR       S:?b4
+    425                  unsigned long  timer_counter=0;
+   \   000014 5F           CLRW      X
+   \   000015 BF ..        LDW       S:?w1, X
+   \   000017 BF ..        LDW       S:?w0, X
+    426                  unsigned int RF_X[5]={0x00,0x00,0x00,0x00,0x00};//Len_H,Len_L,Data_H,Data_L,Data_Vol;
+   \   000019 90AE ....    LDW       Y, #?_4
+   \   00001D 96           LDW       X, SP
+   \   00001E 1C 0003      ADDW      X, #0x3
+   \   000021 89           PUSHW     X
+   \   000022 A6 0A        LD        A, #0xa
+   \   000024 CD ....      CALL      L:?move1616_v_x_y_a
+   \   000027 85           POPW      X
+    427                  unsigned int  timer_cnt=0;
+   \   000028 3F ..        CLR       S:?b9
+   \   00002A 3F ..        CLR       S:?b8
+    428               
+    429                  
+    430          	dat=inp;
+   \   00002C BE ..        LDW       X, S:?w3
+   \   00002E 1F 01        LDW       (0x1,SP), X
+    431                  // syniot version
+    432                  time_len=18600;
+   \   000030 AE 48A8      LDW       X, #0x48a8
+   \   000033 BF ..        LDW       S:?w6, X
+    433                
+    434          	RF_X[2]= 610;	  // short 
+   \   000035 AE 0262      LDW       X, #0x262
+   \   000038 1F 07        LDW       (0x7,SP), X
+    435          	RF_X[3]= 1760;		  // long
+   \   00003A AE 06E0      LDW       X, #0x6e0
+   \   00003D 1F 09        LDW       (0x9,SP), X
+    436          
+    437                  
+    438                  //for jingkong custurm
+    439          	//time_len=11800;
+    440                
+    441          	//RF_X[2]= 305;//610;	  // short 
+    442          	//RF_X[3]= 1094;//1760;		  // long
+    443          
+    444          	for(cnt=0;cnt<SEND_RF_TIMES;cnt++)
+   \   00003F 3F ..        CLR       S:?b11
+   \   000041 20 06        JRA       L:??send_rfdata_All_0
+   \                     ??send_rfdata_All_1:
+   \   000043 B6 ..        LD        A, S:?b11
+   \   000045 AB 01        ADD       A, #0x1
+   \   000047 B7 ..        LD        S:?b11, A
+   \                     ??send_rfdata_All_0:
+   \   000049 B6 ..        LD        A, S:?b11
+   \   00004B A1 0A        CP        A, #0xa
+   \   00004D 25 03        JRC       ??lb_2
+   \   00004F CC ....      JP        L:??send_rfdata_All_2
+    445          	{
+    446          	
+    447          			timer_cnt=0;
+   \                     ??lb_2:
+   \   000052 3F ..        CLR       S:?b9
+   \   000054 3F ..        CLR       S:?b8
+    448          			RF_H;
+   \   000056 A6 08        LD        A, #0x8
+   \   000058 AE 5005      LDW       X, #0x5005
+   \   00005B CD ....      CALL      L:GPIO_SetBits
+   \   00005E 20 05        JRA       L:??send_rfdata_All_3
+    449          			while(timer_cnt<RF_X[2])
+    450          				{
+    451          				timer_cnt++;
+   \                     ??send_rfdata_All_4:
+   \   000060 BE ..        LDW       X, S:?w4
+   \   000062 5C           INCW      X
+   \   000063 BF ..        LDW       S:?w4, X
+    452          				}	
+   \                     ??send_rfdata_All_3:
+   \   000065 BE ..        LDW       X, S:?w4
+   \   000067 13 07        CPW       X, (0x7,SP)
+   \   000069 25 F5        JRC       L:??send_rfdata_All_4
+    453          			RF_L;
+   \   00006B A6 08        LD        A, #0x8
+   \   00006D AE 5005      LDW       X, #0x5005
+   \   000070 CD ....      CALL      L:GPIO_ResetBits
+    454          	   		
+    455          			timer_cnt=0;
+   \   000073 3F ..        CLR       S:?b9
+   \   000075 3F ..        CLR       S:?b8
+   \   000077 20 05        JRA       L:??send_rfdata_All_5
+    456          			while(timer_cnt<time_len)
+    457          				{
+    458          				timer_cnt++;
+   \                     ??send_rfdata_All_6:
+   \   000079 BE ..        LDW       X, S:?w4
+   \   00007B 5C           INCW      X
+   \   00007C BF ..        LDW       S:?w4, X
+    459          				}	
+   \                     ??send_rfdata_All_5:
+   \   00007E BE ..        LDW       X, S:?w4
+   \   000080 B3 ..        CPW       X, S:?w6
+   \   000082 25 F5        JRC       L:??send_rfdata_All_6
+    460          
+    461          			for(j=2;j<5;j++)
+   \   000084 35 02 ....   MOV       S:?b15, #0x2
+   \   000088 20 06        JRA       L:??send_rfdata_All_7
+   \                     ??send_rfdata_All_8:
+   \   00008A B6 ..        LD        A, S:?b15
+   \   00008C AB 01        ADD       A, #0x1
+   \   00008E B7 ..        LD        S:?b15, A
+   \                     ??send_rfdata_All_7:
+   \   000090 B6 ..        LD        A, S:?b15
+   \   000092 A1 05        CP        A, #0x5
+   \   000094 24 AD        JRNC      L:??send_rfdata_All_1
+    462          			{
+    463          				data = 	dat[j];
+   \   000096 5F           CLRW      X
+   \   000097 41           EXG       A, XL
+   \   000098 B6 ..        LD        A, S:?b15
+   \   00009A 41           EXG       A, XL
+   \   00009B 72FB 01      ADDW      X, (0x1,SP)
+   \   00009E F6           LD        A, (X)
+   \   00009F B7 ..        LD        S:?b10, A
+    464          				for(i=0;i<8;i++)
+   \   0000A1 3F ..        CLR       S:?b14
+   \   0000A3 20 11        JRA       L:??send_rfdata_All_9
+    465          				{
+    466          					t=data&0x80;
+    467          					data=data<<1;
+    468          					if(t== 0x80)
+    469          					{
+    470          					   RF_H;
+    471          					
+    472          					   timer_cnt=0;
+    473          					   while(timer_cnt<RF_X[3])
+    474          					   {
+    475          
+    476                                                        timer_cnt++;
+    477          								
+    478          					   }
+    479          					   RF_L;
+    480          					
+    481          					   timer_cnt=0;
+    482          					while(timer_cnt<RF_X[2])
+    483          					{
+    484          						
+    485          							timer_cnt++;
+    486          							
+    487          					}						
+    488          					}	
+    489          					else
+    490          					{
+    491          					   	RF_H;
+    492          					  
+    493          						timer_cnt=0;
+    494          						while(timer_cnt<RF_X[2])
+    495          						{
+    496          							
+    497          								timer_cnt++;
+    498          									
+    499          						}
+    500          					   RF_L;
+    501          					
+    502          						timer_cnt=0;
+    503          					while(timer_cnt<RF_X[3])
+    504          						{
+    505          							
+    506          								timer_cnt++;
+   \                     ??send_rfdata_All_10:
+   \   0000A5 BE ..        LDW       X, S:?w4
+   \   0000A7 5C           INCW      X
+   \   0000A8 BF ..        LDW       S:?w4, X
+    507          								
+    508          						}					
+   \                     ??send_rfdata_All_11:
+   \   0000AA BE ..        LDW       X, S:?w4
+   \   0000AC 13 09        CPW       X, (0x9,SP)
+   \   0000AE 25 F5        JRC       L:??send_rfdata_All_10
+   \                     ??send_rfdata_All_12:
+   \   0000B0 B6 ..        LD        A, S:?b14
+   \   0000B2 AB 01        ADD       A, #0x1
+   \   0000B4 B7 ..        LD        S:?b14, A
+   \                     ??send_rfdata_All_9:
+   \   0000B6 B6 ..        LD        A, S:?b14
+   \   0000B8 A1 08        CP        A, #0x8
+   \   0000BA 24 CE        JRNC      L:??send_rfdata_All_8
+   \   0000BC B6 ..        LD        A, S:?b10
+   \   0000BE A4 80        AND       A, #0x80
+   \   0000C0 B7 ..        LD        S:?b0, A
+   \   0000C2 B6 ..        LD        A, S:?b10
+   \   0000C4 48           SLL       A
+   \   0000C5 B7 ..        LD        S:?b10, A
+   \   0000C7 B6 ..        LD        A, S:?b0
+   \   0000C9 A1 80        CP        A, #0x80
+   \   0000CB 26 32        JRNE      L:??send_rfdata_All_13
+   \   0000CD A6 08        LD        A, #0x8
+   \   0000CF AE 5005      LDW       X, #0x5005
+   \   0000D2 CD ....      CALL      L:GPIO_SetBits
+   \   0000D5 3F ..        CLR       S:?b9
+   \   0000D7 3F ..        CLR       S:?b8
+   \   0000D9 20 05        JRA       L:??send_rfdata_All_14
+   \                     ??send_rfdata_All_15:
+   \   0000DB BE ..        LDW       X, S:?w4
+   \   0000DD 5C           INCW      X
+   \   0000DE BF ..        LDW       S:?w4, X
+   \                     ??send_rfdata_All_14:
+   \   0000E0 BE ..        LDW       X, S:?w4
+   \   0000E2 13 09        CPW       X, (0x9,SP)
+   \   0000E4 25 F5        JRC       L:??send_rfdata_All_15
+   \   0000E6 A6 08        LD        A, #0x8
+   \   0000E8 AE 5005      LDW       X, #0x5005
+   \   0000EB CD ....      CALL      L:GPIO_ResetBits
+   \   0000EE 3F ..        CLR       S:?b9
+   \   0000F0 3F ..        CLR       S:?b8
+   \                     ??send_rfdata_All_16:
+   \   0000F2 BE ..        LDW       X, S:?w4
+   \   0000F4 13 07        CPW       X, (0x7,SP)
+   \   0000F6 24 B8        JRNC      L:??send_rfdata_All_12
+   \   0000F8 BE ..        LDW       X, S:?w4
+   \   0000FA 5C           INCW      X
+   \   0000FB BF ..        LDW       S:?w4, X
+   \   0000FD 20 F3        JRA       L:??send_rfdata_All_16
+   \                     ??send_rfdata_All_13:
+   \   0000FF A6 08        LD        A, #0x8
+   \   000101 AE 5005      LDW       X, #0x5005
+   \   000104 CD ....      CALL      L:GPIO_SetBits
+   \   000107 3F ..        CLR       S:?b9
+   \   000109 3F ..        CLR       S:?b8
+   \   00010B 20 05        JRA       L:??send_rfdata_All_17
+   \                     ??send_rfdata_All_18:
+   \   00010D BE ..        LDW       X, S:?w4
+   \   00010F 5C           INCW      X
+   \   000110 BF ..        LDW       S:?w4, X
+   \                     ??send_rfdata_All_17:
+   \   000112 BE ..        LDW       X, S:?w4
+   \   000114 13 07        CPW       X, (0x7,SP)
+   \   000116 25 F5        JRC       L:??send_rfdata_All_18
+   \   000118 A6 08        LD        A, #0x8
+   \   00011A AE 5005      LDW       X, #0x5005
+   \   00011D CD ....      CALL      L:GPIO_ResetBits
+   \   000120 3F ..        CLR       S:?b9
+   \   000122 3F ..        CLR       S:?b8
+   \   000124 20 84        JRA       L:??send_rfdata_All_11
+    509          					}	
+    510          				}
+    511          		}		
+    512          	}
+    513          	return 0;
+   \                     ??send_rfdata_All_2:
+   \   000126 4F           CLR       A
+   \   000127 5B 0C        ADD       SP, #0xc
+   \   000129 CC ....      JP        L:?epilogue_l2_l3
+    514          }
+    515          #if 0
+    516          unsigned char send_rfdata_All(unsigned char *inp)
+    517          {
+    518          	unsigned char i,j,cnt,t;
+    519          	unsigned char *dat;
+    520          	unsigned int  time_len=0;
+    521          	unsigned char data=0;
+    522          	unsigned int  seekii_counter=0;
+    523                  unsigned long  timer_counter=0;
+    524                  unsigned int RF_X[5]={0x00,0x00,0x00,0x00,0x00};//Len_H,Len_L,Data_H,Data_L,Data_Vol;
+    525                  unsigned int  timer_cnt=0;
+    526               
+    527                  
+    528          	dat=inp;
+    529          	time_len=610;
+    530                
+    531          	RF_X[2]= 20;	  // short 
+    532          	RF_X[3]= 60;		  // long
+    533          
+    534          	for(cnt=0;cnt<SEND_RF_TIMES;cnt++)
+    535          	{
+    536          		   	timer_counter=0;
+    537          			timer_cnt=0;
+    538          			RF_H;
+    539          			while(timer_cnt<RF_X[2])
+    540          				{
+    541          					timer_counter++;
+    542          					if(timer_counter==POINT)
+    543          					{					
+    544          						timer_counter=0;
+    545          						timer_cnt++;
+    546          					}		
+    547          				}	
+    548          			RF_L;
+    549          	   		timer_counter=0;
+    550          			timer_cnt=0;
+    551          			while(timer_cnt<time_len)
+    552          				{
+    553          					timer_counter++;
+    554          					if(timer_counter==POINT)
+    555          					{					
+    556          						timer_counter=0;
+    557          						timer_cnt++;
+    558          					}		
+    559          				}	
+    560          
+    561          			for(j=2;j<5;j++)
+    562          			{
+    563          				data = 	dat[j];
+    564          				for(i=0;i<8;i++)
+    565          				{
+    566          					t=data&0x80;
+    567          					data=data<<1;
+    568          					if(t== 0x80)
+    569          					{
+    570          					   RF_H;
+    571          					   timer_counter=0;
+    572          					   timer_cnt=0;
+    573          					   while(timer_cnt<RF_X[3])
+    574          					   {
+    575          							timer_counter++;
+    576          							if(timer_counter==POINT)
+    577          							{					
+    578          								timer_counter=0;
+    579          								timer_cnt++;
+    580          							}		
+    581          					   }
+    582          					   RF_L;
+    583          					   timer_counter=0;
+    584          					   timer_cnt=0;
+    585          					while(timer_cnt<RF_X[2])
+    586          					{
+    587          						timer_counter++;
+    588          						if(timer_counter==POINT)
+    589          						{					
+    590          							timer_counter=0;
+    591          							timer_cnt++;
+    592          						}		
+    593          					}						
+    594          					}	
+    595          					else
+    596          					{
+    597          					   	RF_H;
+    598          					   	timer_counter=0;
+    599          						timer_cnt=0;
+    600          						while(timer_cnt<RF_X[2])
+    601          						{
+    602          							timer_counter++;
+    603          							if(timer_counter==POINT)
+    604          							{					
+    605          								timer_counter=0;
+    606          								timer_cnt++;
+    607          							}		
+    608          						}
+    609          					   RF_L;
+    610          					   timer_counter=0;
+    611          						timer_cnt=0;
+    612          					while(timer_cnt<RF_X[3])
+    613          						{
+    614          							timer_counter++;
+    615          							if(timer_counter==POINT)
+    616          							{					
+    617          								timer_counter=0;
+    618          								timer_cnt++;
+    619          							}		
+    620          						}					
+    621          					}	
+    622          				}
+    623          		}		
+    624          	}
+    625          	return 0;
+    626          }
+    627          #endif
+    628          /*********************************
+    629          Flash Address:
+    630          //920us  310us  300us 9440us
+    631          cur:1480us   600us 7640
+    632          page1: 0x00 9800 --0x00 983f
+    633          *********************************/
+
+   \                                 In section .near_func.text, align 1
+    634          void main(void)
+    635          {
+   \                     main:
+   \   000000 CD ....      CALL      L:?push_l2
+   \   000003 3B ....      PUSH      S:?b12
+   \   000006 52 0A        SUB       SP, #0xa
+    636          	INT8U i,j;
+    637          	INT32U x;
+    638          	INT8U testbuffer[10] = {"00000"};
+   \   000008 90AE ....    LDW       Y, #?_5
+   \   00000C 96           LDW       X, SP
+   \   00000D 1C 0001      ADDW      X, #0x1
+   \   000010 89           PUSHW     X
+   \   000011 A6 0A        LD        A, #0xa
+   \   000013 CD ....      CALL      L:?move1616_v_x_y_a
+   \   000016 85           POPW      X
+    639                	uint32_t tx_counter=0, itmp;
+   \   000017 5F           CLRW      X
+   \   000018 BF ..        LDW       S:?w5, X
+   \   00001A BF ..        LDW       S:?w4, X
+    640                  state_irq=0;
+   \   00001C 35 00 ....   MOV       L:state_irq, #0x0
+    641                  INT8U read_data=0;
+   \   000020 3F ..        CLR       S:?b12
+    642                  INT8U buff[5]; 
+    643                  
+    644                  
+    645          	//SPI_Initial( );
+    646          	GPIO_Initial( );
+   \   000022 CD ....      CALL      L:GPIO_Initial
+    647          	CLK_init();
+   \   000025 CD ....      CALL      L:CLK_init
+    648                  //UART_init();
+    649                  GPIO_ResetBits( GPIOB, GPIO_Pin_0);
+   \   000028 A6 01        LD        A, #0x1
+   \   00002A AE 5005      LDW       X, #0x5005
+   \   00002D CD ....      CALL      L:GPIO_ResetBits
+    650                  GPIO_ResetBits( GPIOC, GPIO_Pin_2);
+   \   000030 A6 04        LD        A, #0x4
+   \   000032 AE 500A      LDW       X, #0x500a
+   \   000035 CD ....      CALL      L:GPIO_ResetBits
+    651                  GPIO_ResetBits( GPIOC, GPIO_Pin_3);
+   \   000038 A6 08        LD        A, #0x8
+   \   00003A AE 500A      LDW       X, #0x500a
+   \   00003D CD ....      CALL      L:GPIO_ResetBits
+    652                  
+    653                  buff[0]=01;
+   \   000040 A6 01        LD        A, #0x1
+   \   000042 6B 01        LD        (0x1,SP), A
+    654                  buff[1]=0xf0;
+   \   000044 A6 F0        LD        A, #0xf0
+   \   000046 6B 02        LD        (0x2,SP), A
+    655                  buff[2]=0x11;
+   \   000048 A6 11        LD        A, #0x11
+   \   00004A 6B 03        LD        (0x3,SP), A
+    656                  buff[3]=0x23;
+   \   00004C A6 23        LD        A, #0x23
+   \   00004E 6B 04        LD        (0x4,SP), A
+    657                  buff[4]=0x0c;
+   \   000050 A6 0C        LD        A, #0xc
+   \   000052 6B 05        LD        (0x5,SP), A
+    658                  ledBlink(1);
+   \   000054 A6 01        LD        A, #0x1
+   \   000056 CD ....      CALL      L:ledBlink
+    659                  
+    660                 
+    661                  //GPIO_SetBits( GPIOC, GPIO_Pin_2);
+    662                  //GPIO_SetBits( GPIOC, GPIO_Pin_3);
+    663          
+    664          	while(1)
+    665          	{
+    666          
+    667          
+    668                    //433m
+    669          
+    670                    if(DOWN==0)
+   \                     ??main_0:
+   \   000059 A6 04        LD        A, #0x4
+   \   00005B AE 5005      LDW       X, #0x5005
+   \   00005E CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000061 A1 00        CP        A, #0x0
+   \   000063 27 03        JREQ      ??lb_0
+   \   000065 CC ....      JP        L:??main_1
+    671                    {
+    672                          buff[0]=01;
+   \                     ??lb_0:
+   \   000068 A6 01        LD        A, #0x1
+   \   00006A 6B 01        LD        (0x1,SP), A
+    673                          buff[1]=0xf0;
+   \   00006C A6 F0        LD        A, #0xf0
+   \   00006E 6B 02        LD        (0x2,SP), A
+    674                          buff[2]=0x11;
+   \   000070 A6 11        LD        A, #0x11
+   \   000072 6B 03        LD        (0x3,SP), A
+    675                          buff[3]=0x23;
+   \   000074 A6 23        LD        A, #0x23
+   \   000076 6B 04        LD        (0x4,SP), A
+    676                          buff[4]=0x0c;
+   \   000078 A6 0C        LD        A, #0xc
+   \   00007A 6B 05        LD        (0x5,SP), A
+    677                          //ledBlink(1);
+    678                          send_rfdata_All(buff);
+   \   00007C 96           LDW       X, SP
+   \   00007D 1C 0001      ADDW      X, #0x1
+   \   000080 CD ....      CALL      L:send_rfdata_All
+    679                          
+    680                          GPIO_SetBits( GPIOB, GPIO_Pin_0 );//LED ON
+   \   000083 A6 01        LD        A, #0x1
+   \   000085 AE 5005      LDW       X, #0x5005
+   \   000088 CD ....      CALL      L:GPIO_SetBits
+    681                          GPIO_SetBits( GPIOC, GPIO_Pin_2);//OPEN 
+   \   00008B A6 04        LD        A, #0x4
+   \   00008D AE 500A      LDW       X, #0x500a
+   \   000090 CD ....      CALL      L:GPIO_SetBits
+    682                          delayled(250);
+   \   000093 A6 FA        LD        A, #0xfa
+   \   000095 CD ....      CALL      L:delayled
+    683                          delayled(250);//DELAY
+   \   000098 A6 FA        LD        A, #0xfa
+   \   00009A CD ....      CALL      L:delayled
+    684                          delayled(250);
+   \   00009D A6 FA        LD        A, #0xfa
+   \   00009F CD ....      CALL      L:delayled
+    685                          delayled(250);//DELAY
+   \   0000A2 A6 FA        LD        A, #0xfa
+   \   0000A4 CD ....      CALL      L:delayled
+    686                          
+    687                          delayled(250);
+   \   0000A7 A6 FA        LD        A, #0xfa
+   \   0000A9 CD ....      CALL      L:delayled
+    688                          delayled(250);
+   \   0000AC A6 FA        LD        A, #0xfa
+   \   0000AE CD ....      CALL      L:delayled
+    689                                     delayled(250);
+   \   0000B1 A6 FA        LD        A, #0xfa
+   \   0000B3 CD ....      CALL      L:delayled
+    690                          delayled(250);
+   \   0000B6 A6 FA        LD        A, #0xfa
+   \   0000B8 CD ....      CALL      L:delayled
+    691                          delayled(250);
+   \   0000BB A6 FA        LD        A, #0xfa
+   \   0000BD CD ....      CALL      L:delayled
+    692          
+    693                          delayled(250);
+   \   0000C0 A6 FA        LD        A, #0xfa
+   \   0000C2 CD ....      CALL      L:delayled
+    694                          delayled(250);
+   \   0000C5 A6 FA        LD        A, #0xfa
+   \   0000C7 CD ....      CALL      L:delayled
+    695                          delayled(250);
+   \   0000CA A6 FA        LD        A, #0xfa
+   \   0000CC CD ....      CALL      L:delayled
+    696                          delayled(250);
+   \   0000CF A6 FA        LD        A, #0xfa
+   \   0000D1 CD ....      CALL      L:delayled
+    697                          delayled(250);
+   \   0000D4 A6 FA        LD        A, #0xfa
+   \   0000D6 CD ....      CALL      L:delayled
+    698                          delayled(250);
+   \   0000D9 A6 FA        LD        A, #0xfa
+   \   0000DB CD ....      CALL      L:delayled
+    699                          delayled(250);
+   \   0000DE A6 FA        LD        A, #0xfa
+   \   0000E0 CD ....      CALL      L:delayled
+    700                          delayled(250);
+   \   0000E3 A6 FA        LD        A, #0xfa
+   \   0000E5 CD ....      CALL      L:delayled
+    701                          GPIO_ResetBits( GPIOB, GPIO_Pin_0 );//LED OFF
+   \   0000E8 A6 01        LD        A, #0x1
+   \   0000EA AE 5005      LDW       X, #0x5005
+   \   0000ED CD ....      CALL      L:GPIO_ResetBits
+    702                          GPIO_ResetBits( GPIOC, GPIO_Pin_2);//CLOSE
+   \   0000F0 A6 04        LD        A, #0x4
+   \   0000F2 AE 500A      LDW       X, #0x500a
+   \   0000F5 CD ....      CALL      L:GPIO_ResetBits
+    703          
+    704                          //GPIO_ResetBits( GPIOC, GPIO_Pin_3);
+    705          
+    706                     }
+    707          
+    708                    if(UP==0)
+   \                     ??main_1:
+   \   0000F8 A6 02        LD        A, #0x2
+   \   0000FA AE 5005      LDW       X, #0x5005
+   \   0000FD CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000100 A1 00        CP        A, #0x0
+   \   000102 27 03        JREQ      ??lb_1
+   \   000104 CC ....      JP        L:??main_0
+    709                    {
+    710             
+    711                          buff[0]=01;
+   \                     ??lb_1:
+   \   000107 A6 01        LD        A, #0x1
+   \   000109 6B 01        LD        (0x1,SP), A
+    712                          buff[1]=0xf0;
+   \   00010B A6 F0        LD        A, #0xf0
+   \   00010D 6B 02        LD        (0x2,SP), A
+    713                          buff[2]=0x11;
+   \   00010F A6 11        LD        A, #0x11
+   \   000111 6B 03        LD        (0x3,SP), A
+    714                          buff[3]=0x23;
+   \   000113 A6 23        LD        A, #0x23
+   \   000115 6B 04        LD        (0x4,SP), A
+    715                          buff[4]=0x03;
+   \   000117 A6 03        LD        A, #0x3
+   \   000119 6B 05        LD        (0x5,SP), A
+    716                          //ledBlink(2);
+    717                          send_rfdata_All(buff);
+   \   00011B 96           LDW       X, SP
+   \   00011C 1C 0001      ADDW      X, #0x1
+   \   00011F CD ....      CALL      L:send_rfdata_All
+    718                          
+    719                          GPIO_SetBits( GPIOB, GPIO_Pin_0 );//LED ON
+   \   000122 A6 01        LD        A, #0x1
+   \   000124 AE 5005      LDW       X, #0x5005
+   \   000127 CD ....      CALL      L:GPIO_SetBits
+    720                          GPIO_SetBits( GPIOC, GPIO_Pin_3);//OPEN 
+   \   00012A A6 08        LD        A, #0x8
+   \   00012C AE 500A      LDW       X, #0x500a
+   \   00012F CD ....      CALL      L:GPIO_SetBits
+    721                          delayled(250);
+   \   000132 A6 FA        LD        A, #0xfa
+   \   000134 CD ....      CALL      L:delayled
+    722                          delayled(250);//DELAY
+   \   000137 A6 FA        LD        A, #0xfa
+   \   000139 CD ....      CALL      L:delayled
+    723                          delayled(250);
+   \   00013C A6 FA        LD        A, #0xfa
+   \   00013E CD ....      CALL      L:delayled
+    724                          delayled(250);//DELAY
+   \   000141 A6 FA        LD        A, #0xfa
+   \   000143 CD ....      CALL      L:delayled
+    725                          
+    726                          delayled(250);
+   \   000146 A6 FA        LD        A, #0xfa
+   \   000148 CD ....      CALL      L:delayled
+    727                          delayled(250);
+   \   00014B A6 FA        LD        A, #0xfa
+   \   00014D CD ....      CALL      L:delayled
+    728                          delayled(250);
+   \   000150 A6 FA        LD        A, #0xfa
+   \   000152 CD ....      CALL      L:delayled
+    729                     delayled(250);
+   \   000155 A6 FA        LD        A, #0xfa
+   \   000157 CD ....      CALL      L:delayled
+    730                          delayled(250);
+   \   00015A A6 FA        LD        A, #0xfa
+   \   00015C CD ....      CALL      L:delayled
+    731                          delayled(250);
+   \   00015F A6 FA        LD        A, #0xfa
+   \   000161 CD ....      CALL      L:delayled
+    732                          
+    733                          delayled(250);
+   \   000164 A6 FA        LD        A, #0xfa
+   \   000166 CD ....      CALL      L:delayled
+    734                          delayled(250);
+   \   000169 A6 FA        LD        A, #0xfa
+   \   00016B CD ....      CALL      L:delayled
+    735                          delayled(250);
+   \   00016E A6 FA        LD        A, #0xfa
+   \   000170 CD ....      CALL      L:delayled
+    736                          delayled(250);
+   \   000173 A6 FA        LD        A, #0xfa
+   \   000175 CD ....      CALL      L:delayled
+    737                          delayled(250);
+   \   000178 A6 FA        LD        A, #0xfa
+   \   00017A CD ....      CALL      L:delayled
+    738                          delayled(250);
+   \   00017D A6 FA        LD        A, #0xfa
+   \   00017F CD ....      CALL      L:delayled
+    739                          delayled(250);
+   \   000182 A6 FA        LD        A, #0xfa
+   \   000184 CD ....      CALL      L:delayled
+    740                          GPIO_ResetBits( GPIOB, GPIO_Pin_0 );//LED OFF
+   \   000187 A6 01        LD        A, #0x1
+   \   000189 AE 5005      LDW       X, #0x5005
+   \   00018C CD ....      CALL      L:GPIO_ResetBits
+    741                          GPIO_ResetBits( GPIOC, GPIO_Pin_3);//CLOSE
+   \   00018F A6 08        LD        A, #0x8
+   \   000191 AE 500A      LDW       X, #0x500a
+   \   000194 CD ....      CALL      L:GPIO_ResetBits
+   \   000197 CC ....      JP        L:??main_0
+    742          
+    743          
+    744                     }
+    745                 
+    746          
+    747          	}
+    748          
+    749          	while( 0 )
+    750          	{ 
+    751          #if 0 
+    752          // save and read one byte;
+    753                  FLASH_DeInit();
+    754                  FLASH_Unlock(FLASH_MemType_Program);//FLASH_MemType_Data
+    755                  while(FLASH_GetFlagStatus(FLASH_FLAG_PUL)==RESET);
+    756                  FLASH_SetProgrammingTime(FLASH_ProgramTime_TProg);
+    757                  FLASH_WaitForLastOperation(FLASH_MemType_Data);
+    758                  FLASH_ProgramWord(0x8000,0x12345678);//
+    759                  FLASH_WaitForLastOperation(FLASH_MemType_Data);
+    760                  FLASH_Lock(FLASH_MemType_Program);//FLASH_MemType_Data
+    761                      
+    762                  read_data=FLASH_ReadByte(0x8000);//
+    763                  FLASH_WaitForLastOperation(FLASH_MemType_Data);
+    764                  
+    765                  if(read_data==0x12)
+    766                  {
+    767                   //LED_On();
+    768                   }
+    769          #endif 
+    770          #if 0
+    771                  
+    772                  tx_couter= FLASH_ReadWord(0x8000);
+    773                  if(tx_couter==0x12345678)
+    774                  {
+    775                   LED_On();
+    776                   }
+    777          #endif 
+    778          		//发送数据包，每发送一次，LED闪烁一次
+    779          		//CC1101SendPacket( txBuffer,10, ADDRESS_CHECK );
+    780          		CC1101SetTRMode( RX_MODE );
+    781          	
+    782          			while( GPIO_ReadInputDataBit( GPIOB, GPIO_Pin_2 ) == 0 );
+    783          			if( CC1101RecPacket( rxBuffer ) >0 )
+    784          			{
+    785          				LED_Toggle( );
+    786          			
+    787                        
+    788          			}
+    789          			
+    790          		
+    791          	}
+    792          }		
+
+   \                                 In section .near.rodata, align 1
+   \                     ?_0:
+   \   000000 00 00 00     DC8 0, 0, 0
+
+   \                                 In section .near.rodata, align 1
+   \                     ?_1:
+   \   000000 0000 0000    DC16 0, 0, 0, 0, 0
+   \          0000 0000   
+
+   \                                 In section .near.rodata, align 1
+   \                     ?_2:
+   \   000000 00 00 00     DC8 0, 0, 0
+
+   \                                 In section .near.rodata, align 1
+   \                     ?_3:
+   \   000000 0000 0000    DC16 0, 0, 0, 0, 0
+   \          0000 0000   
+
+   \                                 In section .near.rodata, align 1
+   \                     ?_4:
+   \   000000 0000 0000    DC16 0, 0, 0, 0, 0
+   \          0000 0000   
+
+   \                                 In section .near.rodata, align 1
+   \                     ?_5:
+   \   000000 30 30 30 30  DC8 "00000"
+   \          30 00       
+   \   000006 00 00 00 00  DC8 0, 0, 0, 0
+    793          
+
+   Section sizes:
+
+   Bytes  Function/Label
+   -----  --------------
+       3  ?_0
+      10  ?_1
+       3  ?_2
+      10  ?_3
+      10  ?_4
+      10  ?_5
+       5  CLK_init
+      41  CRC_ENC
+     120  EXTI1_IRQHandler
+     209  FLASH_ReadWord
+      11  RF_get
+       9  UART_Send_Byte
+      35  UART_Send_Str
+      39  UART_init
+      39  UartSendBuf
+       2  addr
+     228  delayled
+      93  get_UID
+     530  get_rfdata_All_315
+     530  get_rfdata_All_433
+      50  ledBlink
+     410  main
+      11  rxBuffer
+     300  send_rfdata_All
+       1  state_irq
+       1  state_machine
+      11  txBuffer
+      14  uart_tbuf
+
+ 
+    40 bytes in section .near.bss
+    11 bytes in section .near.data
+    46 bytes in section .near.rodata
+ 2 638 bytes in section .near_func.text
+ 
+ 2 638 bytes of CODE  memory
+    46 bytes of CONST memory
+    51 bytes of DATA  memory
+
+Errors: none
+Warnings: 1

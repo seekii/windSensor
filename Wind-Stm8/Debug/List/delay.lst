@@ -1,0 +1,194 @@
+###############################################################################
+#
+# IAR C/C++ Compiler V2.10.2.149 for STM8                 07/Dec/2016  10:10:34
+# Copyright 2010-2014 IAR Systems AB.
+#
+#    Source file  =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\delay.c
+#    Command line =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\delay.c -e
+#        -Ol --no_cse --no_unroll --no_inline --no_code_motion --no_tbaa
+#        --no_cross_call --debug --code_model small --data_model medium -o
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\Obj\ --dlib_config
+#        "C:\Program Files (x86)\IAR Systems\Embedded Workbench
+#        7.0\stm8\LIB\dlstm8smn.h" -D STM8L15X_MD -lCN
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\List\ --diag_suppress
+#        Pe177,Pe550 -I
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\inc\ -I
+#        F:\share\gitHub\windSensor\Wind-Stm8\Libraries\STM8L15x_StdPeriph_Driver\inc\
+#        --vregs 16
+#    List file    =  F:\share\gitHub\windSensor\Wind-Stm8\Debug\List\delay.lst
+#    Object file  =  F:\share\gitHub\windSensor\Wind-Stm8\Debug\Obj\delay.o
+#
+###############################################################################
+
+F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\delay.c
+      1          /**
+      2            ******************************************************************************
+      3            * @file    delay.c
+      4            * @author  Microcontroller Division
+      5            * @version V1.2.0
+      6            * @date    09/2010
+      7            * @brief   delay functions
+      8            ******************************************************************************
+      9            * @copy
+     10            *
+     11            * THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS AT PROVIDING CUSTOMERS
+     12            * WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN ORDER FOR THEM TO SAVE
+     13            * TIME. AS A RESULT, STMICROELECTRONICS SHALL NOT BE HELD LIABLE FOR ANY
+     14            * DIRECT, INDIRECT OR CONSEQUENTIAL DAMAGES WITH RESPECT TO ANY CLAIMS ARISING
+     15            * FROM THE CONTENT OF SUCH FIRMWARE AND/OR THE USE MADE BY CUSTOMERS OF THE
+     16            * CODING INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR PRODUCTS.
+     17            *
+     18            * <h2><center>&copy; COPYRIGHT 2010 STMicroelectronics</center></h2>
+     19            */
+     20          
+     21          /* Includes ------------------------------------------------------------------*/
+     22          
+     23          #include "stm8l15x_clk.h"
+     24          /**
+     25            * @brief  delay for some time in ms unit
+     26            * @caller auto_test
+     27            * @param  n_ms is how many ms of time to delay
+     28            * @retval None
+     29            */
+
+   \                                 In section .near_func.text, align 1
+     30          void delay_ms(u16 n_ms)
+     31          {
+   \                     delay_ms:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 BF ..        LDW       S:?w4, X
+     32          /* Init TIMER 4 */
+     33            CLK_PeripheralClockConfig(CLK_Peripheral_TIM4, ENABLE);
+   \   000005 35 01 ....   MOV       S:?b0, #0x1
+   \   000009 A6 02        LD        A, #0x2
+   \   00000B CD ....      CALL      L:CLK_PeripheralClockConfig
+     34          
+     35          /* Init TIMER 4 prescaler: / (2^6) = /64 */
+     36            TIM4->PSCR = 6;
+   \   00000E 35 06 52E8   MOV       L:0x52e8, #0x6
+     37          
+     38          /* HSI div by 1 --> Auto-Reload value: 16M / 64 = 1/4M, 1/4M / 1k = 250*/
+     39            TIM4->ARR = 250;
+   \   000012 35 FA 52E9   MOV       L:0x52e9, #0xfa
+     40            
+     41          /* Counter value: 2, to compensate the initialization of TIMER*/
+     42            TIM4->CNTR = 2;
+   \   000016 35 02 52E7   MOV       L:0x52e7, #0x2
+     43          
+     44          /* clear update flag */
+     45            TIM4->SR1 &= ~TIM4_SR1_UIF;
+   \   00001A 7211 52E5    BRES      L:0x52e5, #0x0
+     46          
+     47          /* Enable Counter */
+     48            TIM4->CR1 |= TIM4_CR1_CEN;
+   \   00001E 7210 52E0    BSET      L:0x52e0, #0x0
+   \   000022 20 09        JRA       L:??delay_ms_0
+     49          
+     50            while(n_ms--)
+     51            {
+     52              while((TIM4->SR1 & TIM4_SR1_UIF) == 0) ;
+   \                     ??delay_ms_1:
+   \   000024 7201 52E5 FB BTJF      L:0x52e5, #0x0, L:??delay_ms_1
+     53              TIM4->SR1 &= ~TIM4_SR1_UIF;
+   \   000029 7211 52E5    BRES      L:0x52e5, #0x0
+     54            }
+   \                     ??delay_ms_0:
+   \   00002D BE ..        LDW       X, S:?w4
+   \   00002F 9093         LDW       Y, X
+   \   000031 905A         DECW      Y
+   \   000033 90BF ..      LDW       S:?w4, Y
+   \   000036 5D           TNZW      X
+   \   000037 26 EB        JRNE      L:??delay_ms_1
+     55          
+     56          /* Disable Counter */
+     57            TIM4->CR1 &= ~TIM4_CR1_CEN;
+   \   000039 7211 52E0    BRES      L:0x52e0, #0x0
+     58          }
+   \   00003D CC ....      JP        L:?epilogue_w4
+     59          
+     60          /**
+     61            * @brief  delay for some time in 10us unit(partial accurate)
+     62            * @caller auto_test
+     63            * @param n_10us is how many 10us of time to delay
+     64          
+     65            * @retval None
+     66            */
+
+   \                                 In section .near_func.text, align 1
+     67          void delay_10us(u16 n_10us)
+     68          {
+   \                     delay_10us:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 BF ..        LDW       S:?w4, X
+     69          /* Init TIMER 4 */
+     70            CLK_PeripheralClockConfig(CLK_Peripheral_TIM4, ENABLE);
+   \   000005 35 01 ....   MOV       S:?b0, #0x1
+   \   000009 A6 02        LD        A, #0x2
+   \   00000B CD ....      CALL      L:CLK_PeripheralClockConfig
+     71          
+     72          /* prescaler: / (2^0) = /1 */
+     73            TIM4->PSCR = 0;
+   \   00000E 35 00 52E8   MOV       L:0x52e8, #0x0
+     74          
+     75          /* SYS_CLK_HSI_DIV1 Auto-Reload value: 16M / 1 = 16M, 16M / 100k = 160 */
+     76            TIM4->ARR = 160;
+   \   000012 35 A0 52E9   MOV       L:0x52e9, #0xa0
+     77          
+     78          /* Counter value: 10, to compensate the initialization of TIMER */
+     79            TIM4->CNTR = 10;
+   \   000016 35 0A 52E7   MOV       L:0x52e7, #0xa
+     80          
+     81          /* clear update flag */
+     82            TIM4->SR1 &= ~TIM4_SR1_UIF;
+   \   00001A 7211 52E5    BRES      L:0x52e5, #0x0
+     83          
+     84          /* Enable Counter */
+     85            TIM4->CR1 |= TIM4_CR1_CEN;
+   \   00001E 7210 52E0    BSET      L:0x52e0, #0x0
+   \   000022 20 09        JRA       L:??delay_10us_0
+     86          
+     87            while(n_10us--)
+     88            {
+     89              while((TIM4->SR1 & TIM4_SR1_UIF) == 0) ;
+   \                     ??delay_10us_1:
+   \   000024 7201 52E5 FB BTJF      L:0x52e5, #0x0, L:??delay_10us_1
+     90              TIM4->SR1 &= ~TIM4_SR1_UIF;
+   \   000029 7211 52E5    BRES      L:0x52e5, #0x0
+     91            }
+   \                     ??delay_10us_0:
+   \   00002D BE ..        LDW       X, S:?w4
+   \   00002F 9093         LDW       Y, X
+   \   000031 905A         DECW      Y
+   \   000033 90BF ..      LDW       S:?w4, Y
+   \   000036 5D           TNZW      X
+   \   000037 26 EB        JRNE      L:??delay_10us_1
+     92          
+     93          /* Disable Counter */
+     94            TIM4->CR1 &= ~TIM4_CR1_CEN;
+   \   000039 7211 52E0    BRES      L:0x52e0, #0x0
+     95           CLK_PeripheralClockConfig(CLK_Peripheral_TIM4, DISABLE);
+   \   00003D 3F ..        CLR       S:?b0
+   \   00003F A6 02        LD        A, #0x2
+   \   000041 CD ....      CALL      L:CLK_PeripheralClockConfig
+     96          
+     97          }
+   \   000044 CC ....      JP        L:?epilogue_w4
+     98          
+     99          /******************* (C) COPYRIGHT 2010 STMicroelectronics *****END OF FILE****/
+
+   Section sizes:
+
+   Bytes  Function/Label
+   -----  --------------
+      71  delay_10us
+      64  delay_ms
+
+ 
+ 135 bytes in section .near_func.text
+ 
+ 135 bytes of CODE memory
+
+Errors: none
+Warnings: none

@@ -1,0 +1,1593 @@
+###############################################################################
+#
+# IAR C/C++ Compiler V2.10.2.149 for STM8                 07/Dec/2016  10:10:38
+# Copyright 2010-2014 IAR Systems AB.
+#
+#    Source file  =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\stm8l_discovery_lcd.c
+#    Command line =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\stm8l_discovery_lcd.c
+#        -e -Ol --no_cse --no_unroll --no_inline --no_code_motion --no_tbaa
+#        --no_cross_call --debug --code_model small --data_model medium -o
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\Obj\ --dlib_config
+#        "C:\Program Files (x86)\IAR Systems\Embedded Workbench
+#        7.0\stm8\LIB\dlstm8smn.h" -D STM8L15X_MD -lCN
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\List\ --diag_suppress
+#        Pe177,Pe550 -I
+#        F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\inc\ -I
+#        F:\share\gitHub\windSensor\Wind-Stm8\Libraries\STM8L15x_StdPeriph_Driver\inc\
+#        --vregs 16
+#    List file    =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\List\stm8l_discovery_lcd.lst
+#    Object file  =  
+#        F:\share\gitHub\windSensor\Wind-Stm8\Debug\Obj\stm8l_discovery_lcd.o
+#
+###############################################################################
+
+F:\share\gitHub\windSensor\Wind-Stm8\Project\Discover\src\stm8l_discovery_lcd.c
+      1          /**
+      2            ******************************************************************************
+      3            * @file    stm8l_discovery_lcd.c
+      4            * @author  Microcontroller Division
+      5            * @version V1.2.0
+      6            * @date    09/2010
+      7            * @brief   This file includes driver for the glass LCD Module mounted on 
+      8            *          STM8L1526 discovery board MB915A.
+      9            ******************************************************************************
+     10            * @copy
+     11            *
+     12            * THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS AT PROVIDING CUSTOMERS
+     13            * WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN ORDER FOR THEM TO SAVE
+     14            * TIME. AS A RESULT, STMICROELECTRONICS SHALL NOT BE HELD LIABLE FOR ANY
+     15            * DIRECT, INDIRECT OR CONSEQUENTIAL DAMAGES WITH RESPECT TO ANY CLAIMS ARISING
+     16            * FROM THE CONTENT OF SUCH FIRMWARE AND/OR THE USE MADE BY CUSTOMERS OF THE
+     17            * CODING INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR PRODUCTS.
+     18            *
+     19            * <h2><center>&copy; COPYRIGHT 2010 STMicroelectronics</center></h2>
+     20            */ 
+     21          
+     22          /* Includes ------------------------------------------------------------------*/
+     23          #include "stm8l_discovery_lcd.h"
+     24          #include "discover_board.h"
+     25          
+     26          /* this variable can be used for accelerate the scrolling exit when push user button */
+
+   \                                 In section .near.bss, align 1
+     27          bool KeyPressed = FALSE; 
+   \                     KeyPressed:
+   \   000000              DS8 1
+     28          		
+     29          /* LCD BAR status: We don't write directly in LCD RAM for save the bar setting */
+
+   \                                 In section .near.bss, align 1
+     30          uint8_t t_bar[2]={0x0,0X0};
+   \                     t_bar:
+   \   000000              DS8 2
+     31          		
+     32          /*  =========================================================================
+     33                                           LCD MAPPING
+     34              =========================================================================
+     35          	    A
+     36               _  ----------
+     37          COL |_| |\   |J  /|
+     38                 F| H  |  K |B
+     39               _  |  \ | /  |
+     40          COL |_| --G-- --M--
+     41                  |   /| \  |
+     42                 E|  Q |  N |C
+     43               _  | /  |P  \|   
+     44          DP  |_| -----------  
+     45          	    D         
+     46          
+     47           An LCD character coding is based on the following matrix:
+     48                { E , D , F , COL }
+     49                { M , C , G , H   }
+     50                { B , A , B , A   }
+     51                { G , F , K , J   }
+     52          
+     53           The character 'A' for example is:
+     54            -------------------------------
+     55          LSB   { 1 , 0 , 0 , 0   }
+     56                { 1 , 1 , 0 , 0   }
+     57                { 1 , 1 , 0 , 0   }
+     58          MSB   { 1 , 1 , 0 , 0   }
+     59                -------------------
+     60            'A' =  F    E   0   0 hexa
+     61          
+     62          */
+     63          
+     64          /* Constant table for cap characters 'A' --> 'Z' */
+
+   \                                 In section .near.rodata, align 1
+     65          const uint16_t CapLetterMap[26]=
+   \                     CapLetterMap:
+   \   000000 FE00 6711    DC16 65024, 26385, 7424, 18193, 40192, 39936, 16128, 64000, 17, 21248
+   \          1D00 4711   
+   \   000014 9844 1900    DC16 38980, 6400, 23106, 23046, 24320, 64512, 24324, 64516, 44800, 1041
+   \          5A42 5A06   
+   \   000028 5B00 18C0    DC16 23296, 6336, 23172, 198, 82, 1472
+   \          5A84 00C6   
+     66              {
+     67                  /* A      B      C      D      E      F      G      H      I  */
+     68                  0xFE00,0x6711,0x1d00,0x4711,0x9d00,0x9c00,0x3f00,0xfa00,0x0011,
+     69                  /* J      K      L      M      N      O      P      Q      R  */
+     70                  0x5300,0x9844,0x1900,0x5a42,0x5a06,0x5f00,0xFC00,0x5F04,0xFC04,
+     71                  /* S      T      U      V      W      X      Y      Z  */
+     72                  0xAF00,0x0411,0x5b00,0x18c0,0x5a84,0x00c6,0x0052,0x05c0
+     73              };
+     74          
+     75          /* Constant table for number '0' --> '9' */
+
+   \                                 In section .near.rodata, align 1
+     76          const uint16_t NumberMap[10]=
+   \                     NumberMap:
+   \   000000 5F00 4200    DC16 24320, 16896, 62720, 26368, 59904, 44800, 48896, 17920, 65280
+   \          F500 6700   
+   \   000012 EF00         DC16 61184
+     77              {
+     78                  /* 0      1      2      3      4      5      6      7      8      9  */
+     79                  0x5F00,0x4200,0xF500,0x6700,0xEa00,0xAF00,0xBF00,0x04600,0xFF00,0xEF00
+     80              };
+     81          
+     82          static void LCD_Conv_Char_Seg(uint8_t* c,bool point,bool column,uint8_t* digit);
+     83          
+     84          /**
+     85            * @brief  Configures the LCD GLASS relative GPIO port IOs and LCD peripheral.
+     86            * @param  None
+     87            * @retval None
+     88            */
+
+   \                                 In section .near_func.text, align 1
+     89          void LCD_GLASS_Init(void)
+     90          {
+     91          	
+     92           /* Enable LCD/RTC clock */
+     93            CLK_PeripheralClockConfig(CLK_Peripheral_RTC, ENABLE);
+   \                     LCD_GLASS_Init:
+   \   000000 35 01 ....   MOV       S:?b0, #0x1
+   \   000004 A6 12        LD        A, #0x12
+   \   000006 CD ....      CALL      L:CLK_PeripheralClockConfig
+     94            CLK_PeripheralClockConfig(CLK_Peripheral_LCD, ENABLE);
+   \   000009 35 01 ....   MOV       S:?b0, #0x1
+   \   00000D A6 13        LD        A, #0x13
+   \   00000F CD ....      CALL      L:CLK_PeripheralClockConfig
+     95            
+     96            #ifdef USE_LSE
+     97              CLK_RTCClockConfig(CLK_RTCCLKSource_LSE, CLK_RTCCLKDiv_1);
+     98            #else
+     99              CLK_RTCClockConfig(CLK_RTCCLKSource_LSI, CLK_RTCCLKDiv_1);
+   \   000012 3F ..        CLR       S:?b0
+   \   000014 A6 04        LD        A, #0x4
+   \   000016 CD ....      CALL      L:CLK_RTCClockConfig
+    100            #endif
+    101            
+    102            /* Initialize the LCD */
+    103            LCD_Init(LCD_Prescaler_1, LCD_Divider_31, LCD_Duty_1_4, 
+    104                                             LCD_Bias_1_3, LCD_VoltageSource_Internal);
+   \   000019 3F ..        CLR       S:?b3
+   \   00001B 3F ..        CLR       S:?b2
+   \   00001D 35 06 ....   MOV       S:?b1, #0x6
+   \   000021 35 0F ....   MOV       S:?b0, #0xf
+   \   000025 4F           CLR       A
+   \   000026 CD ....      CALL      L:LCD_Init
+    105            
+    106            /* Mask register
+    107            For declare the segements used.
+    108            in the Discovery we use 0 to 23 segments. */
+    109            LCD_PortMaskConfig(LCD_PortMaskRegister_0, 0xFF);
+   \   000029 35 FF ....   MOV       S:?b0, #0xff
+   \   00002D 4F           CLR       A
+   \   00002E CD ....      CALL      L:LCD_PortMaskConfig
+    110            LCD_PortMaskConfig(LCD_PortMaskRegister_1, 0xFF);
+   \   000031 35 FF ....   MOV       S:?b0, #0xff
+   \   000035 A6 01        LD        A, #0x1
+   \   000037 CD ....      CALL      L:LCD_PortMaskConfig
+    111            LCD_PortMaskConfig(LCD_PortMaskRegister_2, 0xff);
+   \   00003A 35 FF ....   MOV       S:?b0, #0xff
+   \   00003E A6 02        LD        A, #0x2
+   \   000040 CD ....      CALL      L:LCD_PortMaskConfig
+    112            
+    113            /* To set contrast to mean value */
+    114            LCD_ContrastConfig(LCD_Contrast_3V0);
+   \   000043 A6 08        LD        A, #0x8
+   \   000045 CD ....      CALL      L:LCD_ContrastConfig
+    115            
+    116            LCD_DeadTimeConfig(LCD_DeadTime_0);
+   \   000048 4F           CLR       A
+   \   000049 CD ....      CALL      L:LCD_DeadTimeConfig
+    117            LCD_PulseOnDurationConfig(LCD_PulseOnDuration_1);
+   \   00004C A6 20        LD        A, #0x20
+   \   00004E CD ....      CALL      L:LCD_PulseOnDurationConfig
+    118            
+    119            /* Enable LCD peripheral */ 
+    120            LCD_Cmd(ENABLE);
+   \   000051 A6 01        LD        A, #0x1
+   \   000053 CC ....      JP        L:LCD_Cmd
+    121          }
+    122          
+    123          /**
+    124            * @brief  LCD contrast setting min-->max-->min by pressing user button
+    125            * @param  None
+    126            * @retval None
+    127            */
+
+   \                                 In section .near_func.text, align 1
+    128          void LCD_contrast()
+    129          {
+   \                     LCD_contrast:
+   \   000000 3B ....      PUSH      S:?b8
+    130            LCD_Contrast_TypeDef contrast;
+    131            
+    132            /* To get the actual contrast value in register */
+    133            contrast = (LCD_Contrast_TypeDef) (LCD->CR2 & LCD_Contrast_3V3);
+   \   000003 C6 5401      LD        A, L:0x5401
+   \   000006 A4 0E        AND       A, #0xe
+   \   000008 B7 ..        LD        S:?b8, A
+   \   00000A 20 19        JRA       L:??LCD_contrast_0
+    134            
+    135            while ((GPIOC->IDR & USER_GPIO_PIN) == 0x0)
+    136            {
+    137              contrast+=2;	
+   \                     ??LCD_contrast_1:
+   \   00000C B6 ..        LD        A, S:?b8
+   \   00000E AB 02        ADD       A, #0x2
+   \   000010 B7 ..        LD        S:?b8, A
+    138              if (contrast>LCD_Contrast_3V3)
+   \   000012 B6 ..        LD        A, S:?b8
+   \   000014 A1 0F        CP        A, #0xf
+   \   000016 25 02        JRC       L:??LCD_contrast_2
+    139               contrast=LCD_Contrast_2V6;
+   \   000018 3F ..        CLR       S:?b8
+    140            
+    141              LCD_ContrastConfig(contrast);
+   \                     ??LCD_contrast_2:
+   \   00001A B6 ..        LD        A, S:?b8
+   \   00001C CD ....      CALL      L:LCD_ContrastConfig
+    142              delay_ms(100);
+   \   00001F AE 0064      LDW       X, #0x64
+   \   000022 CD ....      CALL      L:delay_ms
+    143            }
+   \                     ??LCD_contrast_0:
+   \   000025 7203 500B E2 BTJF      L:0x500b, #0x1, L:??LCD_contrast_1
+    144          }
+   \   00002A 32 ....      POP       S:?b8
+   \   00002D 81           RET
+    145          
+    146          /**
+    147            * @brief  Setting bar on LCD, writes bar value in LCD frame buffer 
+    148            * @param  None
+    149            * @retval None
+    150            */
+
+   \                                 In section .near_func.text, align 1
+    151          void LCD_bar()
+    152          {
+    153          /* bar0 bar2 */
+    154            LCD->RAM[LCD_RAMRegister_11] &= 0x5f;
+   \                     LCD_bar:
+   \   000000 C6 5417      LD        A, L:0x5417
+   \   000003 A4 5F        AND       A, #0x5f
+   \   000005 C7 5417      LD        L:0x5417, A
+    155            LCD->RAM[LCD_RAMRegister_11] |= t_bar[0]&0xa0;
+   \   000008 C6 ....      LD        A, L:t_bar
+   \   00000B A4 A0        AND       A, #0xa0
+   \   00000D CA 5417      OR        A, L:0x5417
+   \   000010 C7 5417      LD        L:0x5417, A
+    156            
+    157          /*bar1 bar3 */
+    158            LCD->RAM[LCD_RAMRegister_8] &= 0xf5;
+   \   000013 C6 5414      LD        A, L:0x5414
+   \   000016 A4 F5        AND       A, #0xf5
+   \   000018 C7 5414      LD        L:0x5414, A
+    159            LCD->RAM[LCD_RAMRegister_8] |= t_bar[1]&0x0a;
+   \   00001B C6 ....      LD        A, L:t_bar + 1
+   \   00001E A4 0A        AND       A, #0xa
+   \   000020 CA 5414      OR        A, L:0x5414
+   \   000023 C7 5414      LD        L:0x5414, A
+    160          }
+   \   000026 81           RET
+    161          
+    162          /**
+    163            * @brief  Converts an ascii char to the a LCD digit.
+    164            * @param  c: a char to display.
+    165            * @param  point: a point to add in front of char
+    166            *         This parameter can be: POINT_OFF or POINT_ON
+    167            * @param  column : flag indicating if a column has to be add in front
+    168            *         of displayed character.
+    169            *         This parameter can be: COLUMN_OFF or COLUMN_ON.
+    170          	* @param 	digit array with segment 
+    171            * @retval None
+    172            */
+
+   \                                 In section .near_func.text, align 1
+    173          static void LCD_Conv_Char_Seg(uint8_t* c,bool point,bool column, uint8_t* digit)
+    174          {
+   \                     LCD_Conv_Char_Seg:
+   \   000000 B7 ..        LD        S:?b1, A
+   \   000002 90BF ..      LDW       S:?w1, Y
+    175            uint16_t ch = 0 ;
+   \   000005 905F         CLRW      Y
+    176            uint8_t i,j;
+    177            
+    178            switch (*c)
+   \   000007 F6           LD        A, (X)
+   \   000008 A0 20        SUB       A, #0x20
+   \   00000A 27 34        JREQ      L:??LCD_Conv_Char_Seg_0
+   \   00000C A0 0A        SUB       A, #0xa
+   \   00000E 27 34        JREQ      L:??LCD_Conv_Char_Seg_1
+   \   000010 A0 03        SUB       A, #0x3
+   \   000012 27 4C        JREQ      L:??LCD_Conv_Char_Seg_2
+   \   000014 A0 03        SUB       A, #0x3
+   \   000016 27 4F        JREQ      L:??LCD_Conv_Char_Seg_3
+   \   000018 4A           DEC       A
+   \   000019 27 4C        JREQ      L:??LCD_Conv_Char_Seg_3
+   \   00001B 4A           DEC       A
+   \   00001C 27 49        JREQ      L:??LCD_Conv_Char_Seg_3
+   \   00001E 4A           DEC       A
+   \   00001F 27 46        JREQ      L:??LCD_Conv_Char_Seg_3
+   \   000021 4A           DEC       A
+   \   000022 27 43        JREQ      L:??LCD_Conv_Char_Seg_3
+   \   000024 4A           DEC       A
+   \   000025 27 40        JREQ      L:??LCD_Conv_Char_Seg_3
+   \   000027 4A           DEC       A
+   \   000028 27 3D        JREQ      L:??LCD_Conv_Char_Seg_3
+   \   00002A 4A           DEC       A
+   \   00002B 27 3A        JREQ      L:??LCD_Conv_Char_Seg_3
+   \   00002D 4A           DEC       A
+   \   00002E 27 37        JREQ      L:??LCD_Conv_Char_Seg_3
+   \   000030 4A           DEC       A
+   \   000031 27 34        JREQ      L:??LCD_Conv_Char_Seg_3
+   \   000033 A0 34        SUB       A, #0x34
+   \   000035 27 1B        JREQ      L:??LCD_Conv_Char_Seg_4
+   \   000037 4A           DEC       A
+   \   000038 27 1F        JREQ      L:??LCD_Conv_Char_Seg_5
+   \   00003A A0 47        SUB       A, #0x47
+   \   00003C 27 0D        JREQ      L:??LCD_Conv_Char_Seg_6
+   \   00003E 20 33        JRA       L:??LCD_Conv_Char_Seg_7
+    179              {
+    180              case ' ' : 
+    181                ch = 0x00;
+   \                     ??LCD_Conv_Char_Seg_0:
+   \   000040 905F         CLRW      Y
+    182                break;
+   \   000042 20 54        JRA       L:??LCD_Conv_Char_Seg_8
+    183              
+    184              case '*':
+    185                ch = star;
+   \                     ??LCD_Conv_Char_Seg_1:
+   \   000044 AE A0D7      LDW       X, #0xa0d7
+   \   000047 9093         LDW       Y, X
+    186                break;
+   \   000049 20 4D        JRA       L:??LCD_Conv_Char_Seg_8
+    187                            
+    188              case 'µ' :
+    189                ch = C_UMAP;
+   \                     ??LCD_Conv_Char_Seg_6:
+   \   00004B AE 6081      LDW       X, #0x6081
+   \   00004E 9093         LDW       Y, X
+    190                break;
+   \   000050 20 46        JRA       L:??LCD_Conv_Char_Seg_8
+    191              
+    192              case 'm' :
+    193                ch = C_mMap;
+   \                     ??LCD_Conv_Char_Seg_4:
+   \   000052 AE B210      LDW       X, #0xb210
+   \   000055 9093         LDW       Y, X
+    194                break;
+   \   000057 20 3F        JRA       L:??LCD_Conv_Char_Seg_8
+    195                            
+    196              case 'n' :
+    197                ch = C_nMap;
+   \                     ??LCD_Conv_Char_Seg_5:
+   \   000059 AE 2210      LDW       X, #0x2210
+   \   00005C 9093         LDW       Y, X
+    198                break;					
+   \   00005E 20 38        JRA       L:??LCD_Conv_Char_Seg_8
+    199                            
+    200              case '-' :
+    201                ch = C_minus;
+   \                     ??LCD_Conv_Char_Seg_2:
+   \   000060 AE A000      LDW       X, #0xa000
+   \   000063 9093         LDW       Y, X
+    202                break;
+   \   000065 20 31        JRA       L:??LCD_Conv_Char_Seg_8
+    203                            
+    204              case '0':
+    205              case '1':
+    206              case '2':
+    207              case '3':
+    208              case '4':
+    209              case '5':
+    210              case '6':
+    211              case '7':
+    212              case '8':
+    213              case '9':			
+    214                ch = NumberMap[*c-0x30];		
+   \                     ??LCD_Conv_Char_Seg_3:
+   \   000067 F6           LD        A, (X)
+   \   000068 5F           CLRW      X
+   \   000069 97           LD        XL, A
+   \   00006A 58           SLLW      X
+   \   00006B 1C ....      ADDW      X, #NumberMap - 96
+   \   00006E FE           LDW       X, (X)
+   \   00006F 9093         LDW       Y, X
+    215                break;
+   \   000071 20 25        JRA       L:??LCD_Conv_Char_Seg_8
+    216                    
+    217              default:
+    218                /* The character c is one letter in upper case*/
+    219                if ( (*c < 0x5b) && (*c > 0x40) )
+   \                     ??LCD_Conv_Char_Seg_7:
+   \   000073 F6           LD        A, (X)
+   \   000074 A0 41        SUB       A, #0x41
+   \   000076 A1 1A        CP        A, #0x1a
+   \   000078 24 0D        JRNC      L:??LCD_Conv_Char_Seg_9
+    220                {
+    221                  ch = CapLetterMap[*c-'A'];
+   \   00007A F6           LD        A, (X)
+   \   00007B 905F         CLRW      Y
+   \   00007D 9097         LD        YL, A
+   \   00007F 9058         SLLW      Y
+   \   000081 72A9 ....    ADDW      Y, #CapLetterMap - 130
+   \   000085 90FE         LDW       Y, (Y)
+    222                }
+    223                /* The character c is one letter in lower case*/
+    224                if ( (*c <0x7b) && ( *c> 0x60) )
+   \                     ??LCD_Conv_Char_Seg_9:
+   \   000087 F6           LD        A, (X)
+   \   000088 A0 61        SUB       A, #0x61
+   \   00008A A1 1A        CP        A, #0x1a
+   \   00008C 24 0A        JRNC      L:??LCD_Conv_Char_Seg_8
+    225                {
+    226                  ch = CapLetterMap[*c-'a'];
+   \   00008E F6           LD        A, (X)
+   \   00008F 5F           CLRW      X
+   \   000090 97           LD        XL, A
+   \   000091 58           SLLW      X
+   \   000092 1C ....      ADDW      X, #CapLetterMap - 194
+   \   000095 FE           LDW       X, (X)
+   \   000096 9093         LDW       Y, X
+    227                }
+    228                break;
+    229            }
+    230                 
+    231            /* Set the digital point can be displayed if the point is on */
+    232            if (point)
+   \                     ??LCD_Conv_Char_Seg_8:
+   \   000098 3D ..        TNZ       S:?b1
+   \   00009A 27 0A        JREQ      L:??LCD_Conv_Char_Seg_10
+    233            {
+    234              ch |= 0x0008;
+   \   00009C 93           LDW       X, Y
+   \   00009D 02           RLWA      X, A
+   \   00009E AA 00        OR        A, #0x0
+   \   0000A0 02           RLWA      X, A
+   \   0000A1 AA 08        OR        A, #0x8
+   \   0000A3 02           RLWA      X, A
+   \   0000A4 9093         LDW       Y, X
+    235            }
+    236          
+    237            /* Set the "COL" segment in the character that can be displayed if the column is on */
+    238            if (column)
+   \                     ??LCD_Conv_Char_Seg_10:
+   \   0000A6 3D ..        TNZ       S:?b0
+   \   0000A8 27 0A        JREQ      L:??LCD_Conv_Char_Seg_11
+    239            {
+    240              ch |= 0x0020;
+   \   0000AA 93           LDW       X, Y
+   \   0000AB 02           RLWA      X, A
+   \   0000AC AA 00        OR        A, #0x0
+   \   0000AE 02           RLWA      X, A
+   \   0000AF AA 20        OR        A, #0x20
+   \   0000B1 02           RLWA      X, A
+   \   0000B2 9093         LDW       Y, X
+    241            }		
+    242          
+    243            for (i = 12,j=0 ;j<4; i-=4,j++)
+   \                     ??LCD_Conv_Char_Seg_11:
+   \   0000B4 35 0C ....   MOV       S:?b1, #0xc
+   \   0000B8 3F ..        CLR       S:?b0
+   \   0000BA 20 1F        JRA       L:??LCD_Conv_Char_Seg_12
+    244            {
+    245              digit[j] = (ch >> i) & 0x0f; //To isolate the less signifiant dibit
+   \                     ??LCD_Conv_Char_Seg_13:
+   \   0000BC B6 ..        LD        A, S:?b1
+   \   0000BE 93           LDW       X, Y
+   \   0000BF CD ....      CALL      L:?srl16_x_x_a
+   \   0000C2 9F           LD        A, XL
+   \   0000C3 A4 0F        AND       A, #0xf
+   \   0000C5 5F           CLRW      X
+   \   0000C6 41           EXG       A, XL
+   \   0000C7 B6 ..        LD        A, S:?b0
+   \   0000C9 41           EXG       A, XL
+   \   0000CA 72BB ....    ADDW      X, S:?w1
+   \   0000CE F7           LD        (X), A
+    246            }
+   \   0000CF B6 ..        LD        A, S:?b1
+   \   0000D1 AB FC        ADD       A, #0xfc
+   \   0000D3 B7 ..        LD        S:?b1, A
+   \   0000D5 B6 ..        LD        A, S:?b0
+   \   0000D7 AB 01        ADD       A, #0x1
+   \   0000D9 B7 ..        LD        S:?b0, A
+   \                     ??LCD_Conv_Char_Seg_12:
+   \   0000DB B6 ..        LD        A, S:?b0
+   \   0000DD A1 04        CP        A, #0x4
+   \   0000DF 25 DB        JRC       L:??LCD_Conv_Char_Seg_13
+    247          }
+   \   0000E1 81           RET
+    248          
+    249          /**
+    250            * @brief  This function writes a char in the LCD frame buffer.
+    251            * @param  ch: the character to dispaly.
+    252            * @param  point: a point to add in front of char
+    253            *         This parameter can be: POINT_OFF or POINT_ON
+    254            * @param  column: flag indicating if a column has to be add in front
+    255            *         of displayed character.
+    256            *         This parameter can be: COLUMN_OFF or COLUMN_ON.           
+    257            * @param  position: position in the LCD of the caracter to write [0:7]
+    258            * @retval None
+    259            * @par    Required preconditions: The LCD should be cleared before to start the
+    260            *         write operation.  
+    261            */
+
+   \                                 In section .near_func.text, align 1
+    262          void LCD_GLASS_WriteChar(uint8_t* ch, bool point, bool column, uint8_t position)
+    263          {
+   \                     LCD_GLASS_WriteChar:
+   \   000000 3B ....      PUSH      S:?b8
+   \   000003 52 04        SUB       SP, #0x4
+   \   000005 45 .. ..     MOV       S:?b8, S:?b1
+    264            uint8_t digit[4];     /* Digit frame buffer */
+    265          
+    266          /* To convert displayed character in segment in array digit */
+    267            LCD_Conv_Char_Seg(ch,point,column,digit);
+   \   000008 9096         LDW       Y, SP
+   \   00000A 72A9 0001    ADDW      Y, #0x1
+   \   00000E CD ....      CALL      L:LCD_Conv_Char_Seg
+    268          
+    269            switch (position)
+   \   000011 B6 ..        LD        A, S:?b8
+   \   000013 4A           DEC       A
+   \   000014 27 21        JREQ      L:??LCD_GLASS_WriteChar_0
+   \   000016 4A           DEC       A
+   \   000017 26 03        JRNE      ??lb_3
+   \   000019 CC ....      JP        L:??LCD_GLASS_WriteChar_1
+   \                     ??lb_3:
+   \   00001C 4A           DEC       A
+   \   00001D 26 03        JRNE      ??lb_4
+   \   00001F CC ....      JP        L:??LCD_GLASS_WriteChar_2
+   \                     ??lb_4:
+   \   000022 4A           DEC       A
+   \   000023 26 03        JRNE      ??lb_5
+   \   000025 CC ....      JP        L:??LCD_GLASS_WriteChar_3
+   \                     ??lb_5:
+   \   000028 4A           DEC       A
+   \   000029 26 03        JRNE      ??lb_6
+   \   00002B CC ....      JP        L:??LCD_GLASS_WriteChar_4
+   \                     ??lb_6:
+   \   00002E 4A           DEC       A
+   \   00002F 26 03        JRNE      ??lb_7
+   \   000031 CC ....      JP        L:??LCD_GLASS_WriteChar_5
+   \                     ??lb_7:
+   \   000034 CC ....      JP        L:??LCD_GLASS_WriteChar_6
+    270            {
+    271              /* Position 1 on LCD (Digit1)*/
+    272              case 1:
+    273                LCD->RAM[LCD_RAMRegister_0] &= 0x0fc;
+   \                     ??LCD_GLASS_WriteChar_0:
+   \   000037 C6 540C      LD        A, L:0x540c
+   \   00003A A4 FC        AND       A, #0xfc
+   \   00003C C7 540C      LD        L:0x540c, A
+    274                LCD->RAM[LCD_RAMRegister_0] |= (uint8_t)(digit[0]& 0x03); // 1M 1E	
+   \   00003F 7B 01        LD        A, (0x1,SP)
+   \   000041 A4 03        AND       A, #0x3
+   \   000043 CA 540C      OR        A, L:0x540c
+   \   000046 C7 540C      LD        L:0x540c, A
+    275                
+    276                LCD->RAM[LCD_RAMRegister_2] &= 0x3f;
+   \   000049 C6 540E      LD        A, L:0x540e
+   \   00004C A4 3F        AND       A, #0x3f
+   \   00004E C7 540E      LD        L:0x540e, A
+    277                LCD->RAM[LCD_RAMRegister_2] |= (uint8_t)((digit[0]<<4) & 0xc0); // 1G 1B
+   \   000051 7B 01        LD        A, (0x1,SP)
+   \   000053 4E           SWAP      A
+   \   000054 A4 F0        AND       A, #0xf0
+   \   000056 A4 C0        AND       A, #0xc0
+   \   000058 CA 540E      OR        A, L:0x540e
+   \   00005B C7 540E      LD        L:0x540e, A
+    278              
+    279                LCD->RAM[LCD_RAMRegister_3] &= 0x0cf;
+   \   00005E C6 540F      LD        A, L:0x540f
+   \   000061 A4 CF        AND       A, #0xcf
+   \   000063 C7 540F      LD        L:0x540f, A
+    280                LCD->RAM[LCD_RAMRegister_3] |= (uint8_t)(digit[1]<<4 & 0x30); // 1C 1D
+   \   000066 7B 02        LD        A, (0x2,SP)
+   \   000068 4E           SWAP      A
+   \   000069 A4 F0        AND       A, #0xf0
+   \   00006B A4 30        AND       A, #0x30
+   \   00006D CA 540F      OR        A, L:0x540f
+   \   000070 C7 540F      LD        L:0x540f, A
+    281                                                                                                                                                
+    282                LCD->RAM[LCD_RAMRegister_6] &= 0xf3;
+   \   000073 C6 5412      LD        A, L:0x5412
+   \   000076 A4 F3        AND       A, #0xf3
+   \   000078 C7 5412      LD        L:0x5412, A
+    283                LCD->RAM[LCD_RAMRegister_6] |= (uint8_t)(digit[1]&0x0c); // 1F 1A
+   \   00007B 7B 02        LD        A, (0x2,SP)
+   \   00007D A4 0C        AND       A, #0xc
+   \   00007F CA 5412      OR        A, L:0x5412
+   \   000082 C7 5412      LD        L:0x5412, A
+    284                
+    285                LCD->RAM[LCD_RAMRegister_7] &= 0x0fc;
+   \   000085 C6 5413      LD        A, L:0x5413
+   \   000088 A4 FC        AND       A, #0xfc
+   \   00008A C7 5413      LD        L:0x5413, A
+    286                LCD->RAM[LCD_RAMRegister_7] |= (uint8_t)(digit[2]&0x03); // 1Col 1P		
+   \   00008D 7B 03        LD        A, (0x3,SP)
+   \   00008F A4 03        AND       A, #0x3
+   \   000091 CA 5413      OR        A, L:0x5413
+   \   000094 C7 5413      LD        L:0x5413, A
+    287                
+    288                LCD->RAM[LCD_RAMRegister_9] &= 0x3f;
+   \   000097 C6 5415      LD        A, L:0x5415
+   \   00009A A4 3F        AND       A, #0x3f
+   \   00009C C7 5415      LD        L:0x5415, A
+    289                LCD->RAM[LCD_RAMRegister_9] |= (uint8_t)((digit[2]<<4) & 0xc0); // 1Q 1K										
+   \   00009F 7B 03        LD        A, (0x3,SP)
+   \   0000A1 4E           SWAP      A
+   \   0000A2 A4 F0        AND       A, #0xf0
+   \   0000A4 A4 C0        AND       A, #0xc0
+   \   0000A6 CA 5415      OR        A, L:0x5415
+   \   0000A9 C7 5415      LD        L:0x5415, A
+    290                
+    291                LCD->RAM[LCD_RAMRegister_10] &= 0xcf;
+   \   0000AC C6 5416      LD        A, L:0x5416
+   \   0000AF A4 CF        AND       A, #0xcf
+   \   0000B1 C7 5416      LD        L:0x5416, A
+    292                LCD->RAM[LCD_RAMRegister_10] |= (uint8_t)((digit[3]<<2)& 0x30); // 1DP 1N	
+   \   0000B4 7B 04        LD        A, (0x4,SP)
+   \   0000B6 48           SLL       A
+   \   0000B7 48           SLL       A
+   \   0000B8 A4 30        AND       A, #0x30
+   \   0000BA CA 5416      OR        A, L:0x5416
+   \   0000BD C7 5416      LD        L:0x5416, A
+    293                                                                                                                                                
+    294                LCD->RAM[LCD_RAMRegister_13] &= 0xf3;
+   \   0000C0 C6 5419      LD        A, L:0x5419
+   \   0000C3 A4 F3        AND       A, #0xf3
+   \   0000C5 C7 5419      LD        L:0x5419, A
+    295                LCD->RAM[LCD_RAMRegister_13] |= (uint8_t)((digit[3]<<2) & 0x0c); // 1H 1J
+   \   0000C8 7B 04        LD        A, (0x4,SP)
+   \   0000CA 48           SLL       A
+   \   0000CB 48           SLL       A
+   \   0000CC A4 0C        AND       A, #0xc
+   \   0000CE CA 5419      OR        A, L:0x5419
+   \   0000D1 C7 5419      LD        L:0x5419, A
+    296                break;
+   \   0000D4 CC ....      JP        L:??LCD_GLASS_WriteChar_6
+    297              
+    298              /* Position 2 on LCD (Digit2)*/
+    299              case 2:
+    300                LCD->RAM[LCD_RAMRegister_0] &= 0x0f3;
+   \                     ??LCD_GLASS_WriteChar_1:
+   \   0000D7 C6 540C      LD        A, L:0x540c
+   \   0000DA A4 F3        AND       A, #0xf3
+   \   0000DC C7 540C      LD        L:0x540c, A
+    301                LCD->RAM[LCD_RAMRegister_0] |= (uint8_t)((digit[0]<<2)&0x0c); // 2M 2E	
+   \   0000DF 7B 01        LD        A, (0x1,SP)
+   \   0000E1 48           SLL       A
+   \   0000E2 48           SLL       A
+   \   0000E3 A4 0C        AND       A, #0xc
+   \   0000E5 CA 540C      OR        A, L:0x540c
+   \   0000E8 C7 540C      LD        L:0x540c, A
+    302                
+    303                LCD->RAM[LCD_RAMRegister_2] &= 0xcf;
+   \   0000EB C6 540E      LD        A, L:0x540e
+   \   0000EE A4 CF        AND       A, #0xcf
+   \   0000F0 C7 540E      LD        L:0x540e, A
+    304                LCD->RAM[LCD_RAMRegister_2] |= (uint8_t)((digit[0]<<2)&0x30); // 2G 2B
+   \   0000F3 7B 01        LD        A, (0x1,SP)
+   \   0000F5 48           SLL       A
+   \   0000F6 48           SLL       A
+   \   0000F7 A4 30        AND       A, #0x30
+   \   0000F9 CA 540E      OR        A, L:0x540e
+   \   0000FC C7 540E      LD        L:0x540e, A
+    305                
+    306                LCD->RAM[LCD_RAMRegister_3] &= 0x3f;
+   \   0000FF C6 540F      LD        A, L:0x540f
+   \   000102 A4 3F        AND       A, #0x3f
+   \   000104 C7 540F      LD        L:0x540f, A
+    307                LCD->RAM[LCD_RAMRegister_3] |= (uint8_t)((digit[1]<<6) & 0xc0); // 2C 2D
+   \   000107 7B 02        LD        A, (0x2,SP)
+   \   000109 CD ....      CALL      L:?sll8_a_a_6
+   \   00010C CA 540F      OR        A, L:0x540f
+   \   00010F C7 540F      LD        L:0x540f, A
+    308                
+    309                LCD->RAM[LCD_RAMRegister_6] &= 0xfc;
+   \   000112 C6 5412      LD        A, L:0x5412
+   \   000115 A4 FC        AND       A, #0xfc
+   \   000117 C7 5412      LD        L:0x5412, A
+    310                LCD->RAM[LCD_RAMRegister_6] |= (uint8_t)((digit[1]>>2)&0x03); // 2F 2A
+   \   00011A 7B 02        LD        A, (0x2,SP)
+   \   00011C 44           SRL       A
+   \   00011D 44           SRL       A
+   \   00011E A4 03        AND       A, #0x3
+   \   000120 CA 5412      OR        A, L:0x5412
+   \   000123 C7 5412      LD        L:0x5412, A
+    311                
+    312                LCD->RAM[LCD_RAMRegister_7] &= 0xf3;
+   \   000126 C6 5413      LD        A, L:0x5413
+   \   000129 A4 F3        AND       A, #0xf3
+   \   00012B C7 5413      LD        L:0x5413, A
+    313                LCD->RAM[LCD_RAMRegister_7] |= (uint8_t)((digit[2]<<2)& 0x0c); // 2Col 2P		
+   \   00012E 7B 03        LD        A, (0x3,SP)
+   \   000130 48           SLL       A
+   \   000131 48           SLL       A
+   \   000132 A4 0C        AND       A, #0xc
+   \   000134 CA 5413      OR        A, L:0x5413
+   \   000137 C7 5413      LD        L:0x5413, A
+    314                
+    315                LCD->RAM[LCD_RAMRegister_9] &= 0xcf;
+   \   00013A C6 5415      LD        A, L:0x5415
+   \   00013D A4 CF        AND       A, #0xcf
+   \   00013F C7 5415      LD        L:0x5415, A
+    316                LCD->RAM[LCD_RAMRegister_9] |= (uint8_t)((digit[2]<<2)&0x30); // 2Q 2K										
+   \   000142 7B 03        LD        A, (0x3,SP)
+   \   000144 48           SLL       A
+   \   000145 48           SLL       A
+   \   000146 A4 30        AND       A, #0x30
+   \   000148 CA 5415      OR        A, L:0x5415
+   \   00014B C7 5415      LD        L:0x5415, A
+    317                
+    318                LCD->RAM[LCD_RAMRegister_10] &= 0x3f;
+   \   00014E C6 5416      LD        A, L:0x5416
+   \   000151 A4 3F        AND       A, #0x3f
+   \   000153 C7 5416      LD        L:0x5416, A
+    319                LCD->RAM[LCD_RAMRegister_10] |= (uint8_t)((digit[3]<<4)& 0xC0); // 2DP 2N	
+   \   000156 7B 04        LD        A, (0x4,SP)
+   \   000158 4E           SWAP      A
+   \   000159 A4 F0        AND       A, #0xf0
+   \   00015B A4 C0        AND       A, #0xc0
+   \   00015D CA 5416      OR        A, L:0x5416
+   \   000160 C7 5416      LD        L:0x5416, A
+    320                
+    321                LCD->RAM[LCD_RAMRegister_13] &= 0xfc;
+   \   000163 C6 5419      LD        A, L:0x5419
+   \   000166 A4 FC        AND       A, #0xfc
+   \   000168 C7 5419      LD        L:0x5419, A
+    322                LCD->RAM[LCD_RAMRegister_13] |= (uint8_t)((digit[3])& 0x03); // 2H 2J
+   \   00016B 7B 04        LD        A, (0x4,SP)
+   \   00016D A4 03        AND       A, #0x3
+   \   00016F CA 5419      OR        A, L:0x5419
+   \   000172 C7 5419      LD        L:0x5419, A
+    323                break;
+   \   000175 CC ....      JP        L:??LCD_GLASS_WriteChar_6
+    324              
+    325              /* Position 3 on LCD (Digit3)*/
+    326              case 3:
+    327                LCD->RAM[LCD_RAMRegister_0] &= 0xcf;
+   \                     ??LCD_GLASS_WriteChar_2:
+   \   000178 C6 540C      LD        A, L:0x540c
+   \   00017B A4 CF        AND       A, #0xcf
+   \   00017D C7 540C      LD        L:0x540c, A
+    328                LCD->RAM[LCD_RAMRegister_0] |= (uint8_t)(digit[0]<<4) & 0x30; // 3M 3E	
+   \   000180 7B 01        LD        A, (0x1,SP)
+   \   000182 4E           SWAP      A
+   \   000183 A4 F0        AND       A, #0xf0
+   \   000185 A4 30        AND       A, #0x30
+   \   000187 CA 540C      OR        A, L:0x540c
+   \   00018A C7 540C      LD        L:0x540c, A
+    329                
+    330                LCD->RAM[LCD_RAMRegister_2] &= 0xf3;
+   \   00018D C6 540E      LD        A, L:0x540e
+   \   000190 A4 F3        AND       A, #0xf3
+   \   000192 C7 540E      LD        L:0x540e, A
+    331                LCD->RAM[LCD_RAMRegister_2] |= (uint8_t)(digit[0]) & 0x0c; // 3G 3B
+   \   000195 7B 01        LD        A, (0x1,SP)
+   \   000197 A4 0C        AND       A, #0xc
+   \   000199 CA 540E      OR        A, L:0x540e
+   \   00019C C7 540E      LD        L:0x540e, A
+    332                
+    333                LCD->RAM[LCD_RAMRegister_4] &= 0xfc;
+   \   00019F C6 5410      LD        A, L:0x5410
+   \   0001A2 A4 FC        AND       A, #0xfc
+   \   0001A4 C7 5410      LD        L:0x5410, A
+    334                LCD->RAM[LCD_RAMRegister_4] |= (uint8_t)(digit[1]) & 0x03; // 3C 3D
+   \   0001A7 7B 02        LD        A, (0x2,SP)
+   \   0001A9 A4 03        AND       A, #0x3
+   \   0001AB CA 5410      OR        A, L:0x5410
+   \   0001AE C7 5410      LD        L:0x5410, A
+    335                
+    336                LCD->RAM[LCD_RAMRegister_5] &= 0x3f;
+   \   0001B1 C6 5411      LD        A, L:0x5411
+   \   0001B4 A4 3F        AND       A, #0x3f
+   \   0001B6 C7 5411      LD        L:0x5411, A
+    337                LCD->RAM[LCD_RAMRegister_5] |= (uint8_t)(digit[1]<<4) & 0xc0; // 3F 3A
+   \   0001B9 7B 02        LD        A, (0x2,SP)
+   \   0001BB 4E           SWAP      A
+   \   0001BC A4 F0        AND       A, #0xf0
+   \   0001BE A4 C0        AND       A, #0xc0
+   \   0001C0 CA 5411      OR        A, L:0x5411
+   \   0001C3 C7 5411      LD        L:0x5411, A
+    338                                                                                                                                                
+    339                LCD->RAM[LCD_RAMRegister_7] &= 0xcf;
+   \   0001C6 C6 5413      LD        A, L:0x5413
+   \   0001C9 A4 CF        AND       A, #0xcf
+   \   0001CB C7 5413      LD        L:0x5413, A
+    340                LCD->RAM[LCD_RAMRegister_7] |= (uint8_t)(digit[2]<<4)&0x30; // 3Col 3P		
+   \   0001CE 7B 03        LD        A, (0x3,SP)
+   \   0001D0 4E           SWAP      A
+   \   0001D1 A4 F0        AND       A, #0xf0
+   \   0001D3 A4 30        AND       A, #0x30
+   \   0001D5 CA 5413      OR        A, L:0x5413
+   \   0001D8 C7 5413      LD        L:0x5413, A
+    341                                                                                                                                                
+    342                LCD->RAM[LCD_RAMRegister_9] &= 0xf3;
+   \   0001DB C6 5415      LD        A, L:0x5415
+   \   0001DE A4 F3        AND       A, #0xf3
+   \   0001E0 C7 5415      LD        L:0x5415, A
+    343                LCD->RAM[LCD_RAMRegister_9] |= (uint8_t)(digit[2]) & 0x0C;  // 3Q 3K										
+   \   0001E3 7B 03        LD        A, (0x3,SP)
+   \   0001E5 A4 0C        AND       A, #0xc
+   \   0001E7 CA 5415      OR        A, L:0x5415
+   \   0001EA C7 5415      LD        L:0x5415, A
+    344                
+    345                LCD->RAM[LCD_RAMRegister_11] &= 0xfc;
+   \   0001ED C6 5417      LD        A, L:0x5417
+   \   0001F0 A4 FC        AND       A, #0xfc
+   \   0001F2 C7 5417      LD        L:0x5417, A
+    346                LCD->RAM[LCD_RAMRegister_11] |= (uint8_t)(digit[3]>>2) & 0x03 ; // 3DP 3N	
+   \   0001F5 7B 04        LD        A, (0x4,SP)
+   \   0001F7 44           SRL       A
+   \   0001F8 44           SRL       A
+   \   0001F9 A4 03        AND       A, #0x3
+   \   0001FB CA 5417      OR        A, L:0x5417
+   \   0001FE C7 5417      LD        L:0x5417, A
+    347                                                                                                                
+    348                LCD->RAM[LCD_RAMRegister_12] &= 0x3f;
+   \   000201 C6 5418      LD        A, L:0x5418
+   \   000204 A4 3F        AND       A, #0x3f
+   \   000206 C7 5418      LD        L:0x5418, A
+    349                LCD->RAM[LCD_RAMRegister_12] |= (uint8_t)(digit[3]<<6) & 0xc0; // 3H 3J
+   \   000209 7B 04        LD        A, (0x4,SP)
+   \   00020B CD ....      CALL      L:?sll8_a_a_6
+   \   00020E CA 5418      OR        A, L:0x5418
+   \   000211 C7 5418      LD        L:0x5418, A
+    350                break;
+   \   000214 CC ....      JP        L:??LCD_GLASS_WriteChar_6
+    351              
+    352              /* Position 4 on LCD (Digit4)*/
+    353              case 4:
+    354                LCD->RAM[LCD_RAMRegister_0] &= 0x3f;
+   \                     ??LCD_GLASS_WriteChar_3:
+   \   000217 C6 540C      LD        A, L:0x540c
+   \   00021A A4 3F        AND       A, #0x3f
+   \   00021C C7 540C      LD        L:0x540c, A
+    355                LCD->RAM[LCD_RAMRegister_0] |= (uint8_t)(digit[0]<<6) & 0xc0; // 4M 4E	
+   \   00021F 7B 01        LD        A, (0x1,SP)
+   \   000221 CD ....      CALL      L:?sll8_a_a_6
+   \   000224 CA 540C      OR        A, L:0x540c
+   \   000227 C7 540C      LD        L:0x540c, A
+    356                
+    357                LCD->RAM[LCD_RAMRegister_2] &= 0xfc;
+   \   00022A C6 540E      LD        A, L:0x540e
+   \   00022D A4 FC        AND       A, #0xfc
+   \   00022F C7 540E      LD        L:0x540e, A
+    358                LCD->RAM[LCD_RAMRegister_2] |= (uint8_t)(digit[0]>>2) & 0x03; // 4G 4B
+   \   000232 7B 01        LD        A, (0x1,SP)
+   \   000234 44           SRL       A
+   \   000235 44           SRL       A
+   \   000236 A4 03        AND       A, #0x3
+   \   000238 CA 540E      OR        A, L:0x540e
+   \   00023B C7 540E      LD        L:0x540e, A
+    359                
+    360                LCD->RAM[LCD_RAMRegister_4] &= 0xf3;
+   \   00023E C6 5410      LD        A, L:0x5410
+   \   000241 A4 F3        AND       A, #0xf3
+   \   000243 C7 5410      LD        L:0x5410, A
+    361                LCD->RAM[LCD_RAMRegister_4] |= (uint8_t)(digit[1]<<2) & 0x0C; // 4C 4D
+   \   000246 7B 02        LD        A, (0x2,SP)
+   \   000248 48           SLL       A
+   \   000249 48           SLL       A
+   \   00024A A4 0C        AND       A, #0xc
+   \   00024C CA 5410      OR        A, L:0x5410
+   \   00024F C7 5410      LD        L:0x5410, A
+    362                
+    363                LCD->RAM[LCD_RAMRegister_5] &= 0xcf;
+   \   000252 C6 5411      LD        A, L:0x5411
+   \   000255 A4 CF        AND       A, #0xcf
+   \   000257 C7 5411      LD        L:0x5411, A
+    364                LCD->RAM[LCD_RAMRegister_5] |= (uint8_t)(digit[1]<<2) & 0x30; // 4F 4A
+   \   00025A 7B 02        LD        A, (0x2,SP)
+   \   00025C 48           SLL       A
+   \   00025D 48           SLL       A
+   \   00025E A4 30        AND       A, #0x30
+   \   000260 CA 5411      OR        A, L:0x5411
+   \   000263 C7 5411      LD        L:0x5411, A
+    365                                                                                                                                                
+    366                LCD->RAM[LCD_RAMRegister_7] &= 0x3f;
+   \   000266 C6 5413      LD        A, L:0x5413
+   \   000269 A4 3F        AND       A, #0x3f
+   \   00026B C7 5413      LD        L:0x5413, A
+    367                LCD->RAM[LCD_RAMRegister_7] |= (uint8_t)(digit[2]<<6) & 0xC0; // 4Col 4P		
+   \   00026E 7B 03        LD        A, (0x3,SP)
+   \   000270 CD ....      CALL      L:?sll8_a_a_6
+   \   000273 CA 5413      OR        A, L:0x5413
+   \   000276 C7 5413      LD        L:0x5413, A
+    368              
+    369                LCD->RAM[LCD_RAMRegister_9] &= 0xfc;				
+   \   000279 C6 5415      LD        A, L:0x5415
+   \   00027C A4 FC        AND       A, #0xfc
+   \   00027E C7 5415      LD        L:0x5415, A
+    370                LCD->RAM[LCD_RAMRegister_9] |= (uint8_t)(digit[2]>>2) & 0x03 ; // 4Q 4K										
+   \   000281 7B 03        LD        A, (0x3,SP)
+   \   000283 44           SRL       A
+   \   000284 44           SRL       A
+   \   000285 A4 03        AND       A, #0x3
+   \   000287 CA 5415      OR        A, L:0x5415
+   \   00028A C7 5415      LD        L:0x5415, A
+    371              
+    372                LCD->RAM[LCD_RAMRegister_11] &= 0xf3;				
+   \   00028D C6 5417      LD        A, L:0x5417
+   \   000290 A4 F3        AND       A, #0xf3
+   \   000292 C7 5417      LD        L:0x5417, A
+    373                LCD->RAM[LCD_RAMRegister_11] |= (uint8_t)(digit[3]) & 0x0C; // 4DP 4N	
+   \   000295 7B 04        LD        A, (0x4,SP)
+   \   000297 A4 0C        AND       A, #0xc
+   \   000299 CA 5417      OR        A, L:0x5417
+   \   00029C C7 5417      LD        L:0x5417, A
+    374              
+    375                LCD->RAM[LCD_RAMRegister_12] &= 0xcf;				
+   \   00029F C6 5418      LD        A, L:0x5418
+   \   0002A2 A4 CF        AND       A, #0xcf
+   \   0002A4 C7 5418      LD        L:0x5418, A
+    376                LCD->RAM[LCD_RAMRegister_12] |= (uint8_t)(digit[3]<<4) & 0x30; // 4H 4J
+   \   0002A7 7B 04        LD        A, (0x4,SP)
+   \   0002A9 4E           SWAP      A
+   \   0002AA A4 F0        AND       A, #0xf0
+   \   0002AC A4 30        AND       A, #0x30
+   \   0002AE CA 5418      OR        A, L:0x5418
+   \   0002B1 C7 5418      LD        L:0x5418, A
+    377                break;
+   \   0002B4 CC ....      JP        L:??LCD_GLASS_WriteChar_6
+    378              
+    379              /* Position 5 on LCD (Digit5)*/
+    380              case 5:
+    381                LCD->RAM[LCD_RAMRegister_1] &= 0xfc;
+   \                     ??LCD_GLASS_WriteChar_4:
+   \   0002B7 C6 540D      LD        A, L:0x540d
+   \   0002BA A4 FC        AND       A, #0xfc
+   \   0002BC C7 540D      LD        L:0x540d, A
+    382                LCD->RAM[LCD_RAMRegister_1] |=  (uint8_t)(digit[0]) & 0x03; // 5M 5E	
+   \   0002BF 7B 01        LD        A, (0x1,SP)
+   \   0002C1 A4 03        AND       A, #0x3
+   \   0002C3 CA 540D      OR        A, L:0x540d
+   \   0002C6 C7 540D      LD        L:0x540d, A
+    383                
+    384                LCD->RAM[LCD_RAMRegister_1] &= 0x3f;
+   \   0002C9 C6 540D      LD        A, L:0x540d
+   \   0002CC A4 3F        AND       A, #0x3f
+   \   0002CE C7 540D      LD        L:0x540d, A
+    385                LCD->RAM[LCD_RAMRegister_1] |=  (uint8_t)(digit[0]<<4) & 0xc0; // 5G 5B
+   \   0002D1 7B 01        LD        A, (0x1,SP)
+   \   0002D3 4E           SWAP      A
+   \   0002D4 A4 F0        AND       A, #0xf0
+   \   0002D6 A4 C0        AND       A, #0xc0
+   \   0002D8 CA 540D      OR        A, L:0x540d
+   \   0002DB C7 540D      LD        L:0x540d, A
+    386              
+    387                LCD->RAM[LCD_RAMRegister_4] &= 0xcf;				
+   \   0002DE C6 5410      LD        A, L:0x5410
+   \   0002E1 A4 CF        AND       A, #0xcf
+   \   0002E3 C7 5410      LD        L:0x5410, A
+    388                LCD->RAM[LCD_RAMRegister_4] |= (uint8_t)(digit[1]<<4) & 0x30; // 5C 5D
+   \   0002E6 7B 02        LD        A, (0x2,SP)
+   \   0002E8 4E           SWAP      A
+   \   0002E9 A4 F0        AND       A, #0xf0
+   \   0002EB A4 30        AND       A, #0x30
+   \   0002ED CA 5410      OR        A, L:0x5410
+   \   0002F0 C7 5410      LD        L:0x5410, A
+    389              
+    390                LCD->RAM[LCD_RAMRegister_5] &= 0xf3;				
+   \   0002F3 C6 5411      LD        A, L:0x5411
+   \   0002F6 A4 F3        AND       A, #0xf3
+   \   0002F8 C7 5411      LD        L:0x5411, A
+    391                LCD->RAM[LCD_RAMRegister_5] |=  (uint8_t)(digit[1]) & 0x0c; // 5F 5A
+   \   0002FB 7B 02        LD        A, (0x2,SP)
+   \   0002FD A4 0C        AND       A, #0xc
+   \   0002FF CA 5411      OR        A, L:0x5411
+   \   000302 C7 5411      LD        L:0x5411, A
+    392              
+    393                // 5 DP 5 COL not used
+    394                
+    395                LCD->RAM[LCD_RAMRegister_8] &= 0xfe;
+   \   000305 7211 5414    BRES      L:0x5414, #0x0
+    396                LCD->RAM[LCD_RAMRegister_8] |=  (uint8_t)(digit[2]) & 0x01; //  5P	
+   \   000309 7B 03        LD        A, (0x3,SP)
+   \   00030B A4 01        AND       A, #0x1
+   \   00030D CA 5414      OR        A, L:0x5414
+   \   000310 C7 5414      LD        L:0x5414, A
+    397                
+    398                LCD->RAM[LCD_RAMRegister_8] &= 0x3f;					
+   \   000313 C6 5414      LD        A, L:0x5414
+   \   000316 A4 3F        AND       A, #0x3f
+   \   000318 C7 5414      LD        L:0x5414, A
+    399                LCD->RAM[LCD_RAMRegister_8] |=  (uint8_t)(digit[2]<<4) & 0xc0; // 5Q 5K										
+   \   00031B 7B 03        LD        A, (0x3,SP)
+   \   00031D 4E           SWAP      A
+   \   00031E A4 F0        AND       A, #0xf0
+   \   000320 A4 C0        AND       A, #0xc0
+   \   000322 CA 5414      OR        A, L:0x5414
+   \   000325 C7 5414      LD        L:0x5414, A
+    400              
+    401                LCD->RAM[LCD_RAMRegister_11] &= 0xef;				
+   \   000328 7219 5417    BRES      L:0x5417, #0x4
+    402                LCD->RAM[LCD_RAMRegister_11] |=  (uint8_t)(digit[3]<<2) & 0x10; // 5N	
+   \   00032C 7B 04        LD        A, (0x4,SP)
+   \   00032E 48           SLL       A
+   \   00032F 48           SLL       A
+   \   000330 A4 10        AND       A, #0x10
+   \   000332 CA 5417      OR        A, L:0x5417
+   \   000335 C7 5417      LD        L:0x5417, A
+    403              
+    404                LCD->RAM[LCD_RAMRegister_12] &= 0xf3;				
+   \   000338 C6 5418      LD        A, L:0x5418
+   \   00033B A4 F3        AND       A, #0xf3
+   \   00033D C7 5418      LD        L:0x5418, A
+    405                LCD->RAM[LCD_RAMRegister_12] |=  (uint8_t)(digit[3]<<2) & 0x0C; // 5H 5J
+   \   000340 7B 04        LD        A, (0x4,SP)
+   \   000342 48           SLL       A
+   \   000343 48           SLL       A
+   \   000344 A4 0C        AND       A, #0xc
+   \   000346 CA 5418      OR        A, L:0x5418
+   \   000349 C7 5418      LD        L:0x5418, A
+    406                break;
+   \   00034C CC ....      JP        L:??LCD_GLASS_WriteChar_6
+    407              
+    408              /* Position 6 on LCD (Digit6)*/
+    409              case 6:
+    410                LCD->RAM[LCD_RAMRegister_1] &= 0xf3;
+   \                     ??LCD_GLASS_WriteChar_5:
+   \   00034F C6 540D      LD        A, L:0x540d
+   \   000352 A4 F3        AND       A, #0xf3
+   \   000354 C7 540D      LD        L:0x540d, A
+    411                LCD->RAM[LCD_RAMRegister_1] |=  (uint8_t)(digit[0]<<2) & 0x0C; // 6M 6E	
+   \   000357 7B 01        LD        A, (0x1,SP)
+   \   000359 48           SLL       A
+   \   00035A 48           SLL       A
+   \   00035B A4 0C        AND       A, #0xc
+   \   00035D CA 540D      OR        A, L:0x540d
+   \   000360 C7 540D      LD        L:0x540d, A
+    412              
+    413                LCD->RAM[LCD_RAMRegister_1] &= 0xcf;				
+   \   000363 C6 540D      LD        A, L:0x540d
+   \   000366 A4 CF        AND       A, #0xcf
+   \   000368 C7 540D      LD        L:0x540d, A
+    414                LCD->RAM[LCD_RAMRegister_1] |=  (uint8_t)(digit[0]<<2) & 0x30; // 6G 6B
+   \   00036B 7B 01        LD        A, (0x1,SP)
+   \   00036D 48           SLL       A
+   \   00036E 48           SLL       A
+   \   00036F A4 30        AND       A, #0x30
+   \   000371 CA 540D      OR        A, L:0x540d
+   \   000374 C7 540D      LD        L:0x540d, A
+    415              
+    416                LCD->RAM[LCD_RAMRegister_4] &= 0x3f;				
+   \   000377 C6 5410      LD        A, L:0x5410
+   \   00037A A4 3F        AND       A, #0x3f
+   \   00037C C7 5410      LD        L:0x5410, A
+    417                LCD->RAM[LCD_RAMRegister_4] |= (uint8_t)(digit[1]<<6) & 0xc0; // 6C 6D
+   \   00037F 7B 02        LD        A, (0x2,SP)
+   \   000381 CD ....      CALL      L:?sll8_a_a_6
+   \   000384 CA 5410      OR        A, L:0x5410
+   \   000387 C7 5410      LD        L:0x5410, A
+    418              
+    419                LCD->RAM[LCD_RAMRegister_5] &= 0xfc;				
+   \   00038A C6 5411      LD        A, L:0x5411
+   \   00038D A4 FC        AND       A, #0xfc
+   \   00038F C7 5411      LD        L:0x5411, A
+    420                LCD->RAM[LCD_RAMRegister_5] |=  (uint8_t)(digit[1]>>2) & 0x03; // 6F 6A
+   \   000392 7B 02        LD        A, (0x2,SP)
+   \   000394 44           SRL       A
+   \   000395 44           SRL       A
+   \   000396 A4 03        AND       A, #0x3
+   \   000398 CA 5411      OR        A, L:0x5411
+   \   00039B C7 5411      LD        L:0x5411, A
+    421                
+    422                LCD->RAM[LCD_RAMRegister_8] &= 0xfb;
+   \   00039E 7215 5414    BRES      L:0x5414, #0x2
+    423                LCD->RAM[LCD_RAMRegister_8] |=  (uint8_t)(digit[2]<<2) & 0x04; //  6P	
+   \   0003A2 7B 03        LD        A, (0x3,SP)
+   \   0003A4 48           SLL       A
+   \   0003A5 48           SLL       A
+   \   0003A6 A4 04        AND       A, #0x4
+   \   0003A8 CA 5414      OR        A, L:0x5414
+   \   0003AB C7 5414      LD        L:0x5414, A
+    424                
+    425                // 6 DP 6COL not used
+    426                LCD->RAM[LCD_RAMRegister_8] &= 0xcf;					
+   \   0003AE C6 5414      LD        A, L:0x5414
+   \   0003B1 A4 CF        AND       A, #0xcf
+   \   0003B3 C7 5414      LD        L:0x5414, A
+    427                LCD->RAM[LCD_RAMRegister_8] |=  (uint8_t)(digit[2]<<2) & 0x30; // 6Q 6K	
+   \   0003B6 7B 03        LD        A, (0x3,SP)
+   \   0003B8 48           SLL       A
+   \   0003B9 48           SLL       A
+   \   0003BA A4 30        AND       A, #0x30
+   \   0003BC CA 5414      OR        A, L:0x5414
+   \   0003BF C7 5414      LD        L:0x5414, A
+    428              
+    429                LCD->RAM[LCD_RAMRegister_11] &= 0xbf;				
+   \   0003C2 721D 5417    BRES      L:0x5417, #0x6
+    430                LCD->RAM[LCD_RAMRegister_11] |=  (uint8_t)(digit[3]<<4) & 0x40; // 6N	
+   \   0003C6 7B 04        LD        A, (0x4,SP)
+   \   0003C8 4E           SWAP      A
+   \   0003C9 A4 F0        AND       A, #0xf0
+   \   0003CB A4 40        AND       A, #0x40
+   \   0003CD CA 5417      OR        A, L:0x5417
+   \   0003D0 C7 5417      LD        L:0x5417, A
+    431              
+    432                LCD->RAM[LCD_RAMRegister_12] &= 0xfc;				
+   \   0003D3 C6 5418      LD        A, L:0x5418
+   \   0003D6 A4 FC        AND       A, #0xfc
+   \   0003D8 C7 5418      LD        L:0x5418, A
+    433                LCD->RAM[LCD_RAMRegister_12] |= (uint8_t)(digit[3]) & 0x03; // 6H	6J
+   \   0003DB 7B 04        LD        A, (0x4,SP)
+   \   0003DD A4 03        AND       A, #0x3
+   \   0003DF CA 5418      OR        A, L:0x5418
+   \   0003E2 C7 5418      LD        L:0x5418, A
+    434                break;
+    435              
+    436                default:
+    437                        break;
+    438            }
+    439          
+    440          /* Refresh LCD  bar */
+    441          	LCD_bar();
+   \                     ??LCD_GLASS_WriteChar_6:
+   \   0003E5 CD ....      CALL      L:LCD_bar
+    442          }
+   \   0003E8 5B 04        ADD       SP, #0x4
+   \   0003EA 32 ....      POP       S:?b8
+   \   0003ED 81           RET
+    443          
+    444          /**
+    445            * @brief  This function writes a char in the LCD RAM.
+    446            * @param  ptr: Pointer to string to display on the LCD Glass.
+    447            * @retval None
+    448            */
+
+   \                                 In section .near_func.text, align 1
+    449          void LCD_GLASS_DisplayString(uint8_t* ptr)
+    450          {
+   \                     LCD_GLASS_DisplayString:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 3B ....      PUSH      S:?b10
+   \   000006 BF ..        LDW       S:?w4, X
+    451            uint8_t i = 0x01;
+   \   000008 35 01 ....   MOV       S:?b10, #0x1
+    452          
+    453          	LCD_GLASS_Clear();
+   \   00000C CD ....      CALL      L:LCD_GLASS_Clear
+   \   00000F 20 16        JRA       L:??LCD_GLASS_DisplayString_0
+    454            /* Send the string character by character on lCD */
+    455            while ((*ptr != 0) & (i < 8))
+    456            {
+    457              /* Display one character on LCD */
+    458              LCD_GLASS_WriteChar(ptr, FALSE, FALSE, i);
+   \                     ??LCD_GLASS_DisplayString_1:
+   \   000011 45 .. ..     MOV       S:?b1, S:?b10
+   \   000014 3F ..        CLR       S:?b0
+   \   000016 4F           CLR       A
+   \   000017 BE ..        LDW       X, S:?w4
+   \   000019 CD ....      CALL      L:LCD_GLASS_WriteChar
+    459          
+    460              /* Point on the next character */
+    461              ptr++;
+   \   00001C BE ..        LDW       X, S:?w4
+   \   00001E 5C           INCW      X
+   \   00001F BF ..        LDW       S:?w4, X
+    462          
+    463              /* Increment the character counter */
+    464              i++;
+   \   000021 B6 ..        LD        A, S:?b10
+   \   000023 AB 01        ADD       A, #0x1
+   \   000025 B7 ..        LD        S:?b10, A
+    465            }
+   \                     ??LCD_GLASS_DisplayString_0:
+   \   000027 923D ..      TNZ       [S:?w4.w]
+   \   00002A 27 06        JREQ      L:??LCD_GLASS_DisplayString_2
+   \   00002C B6 ..        LD        A, S:?b10
+   \   00002E A1 08        CP        A, #0x8
+   \   000030 25 DF        JRC       L:??LCD_GLASS_DisplayString_1
+    466          }
+   \                     ??LCD_GLASS_DisplayString_2:
+   \   000032 32 ....      POP       S:?b10
+   \   000035 CC ....      JP        L:?epilogue_w4
+    467          
+    468          /**
+    469            * @brief  This function writes a char in the LCD RAM.
+    470            * @param  ptr: Pointer to string to display on the LCD Glass.
+    471            * @retval None
+    472            * @par    Required preconditions: Char is ASCCI value "Ored" with decimal point or Column flag
+    473            */
+
+   \                                 In section .near_func.text, align 1
+    474          void LCD_GLASS_DisplayStrDeci(uint16_t* ptr)
+    475          {
+   \                     LCD_GLASS_DisplayStrDeci:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 3B ....      PUSH      S:?b10
+   \   000006 52 01        SUB       SP, #0x1
+   \   000008 BF ..        LDW       S:?w4, X
+    476            uint8_t i = 0x01;
+   \   00000A 35 01 ....   MOV       S:?b10, #0x1
+    477          	uint8_t char_tmp;
+    478          	
+    479          	LCD_GLASS_Clear();
+   \   00000E CD ....      CALL      L:LCD_GLASS_Clear
+   \   000011 20 1A        JRA       L:??LCD_GLASS_DisplayStrDeci_0
+    480            /* Send the string character by character on lCD */
+    481            while ((*ptr != 0) & (i < 8))
+    482            {			
+    483              char_tmp = (*ptr) & 0x00ff;
+    484              
+    485              switch ((*ptr) & 0xf000)
+    486              {
+    487                case DOT:
+    488                    /* Display one character on LCD with decimal point */
+    489                    LCD_GLASS_WriteChar(&char_tmp, POINT_ON, COLUMN_OFF, i);
+    490                    break;
+    491                case DOUBLE_DOT:
+    492                    /* Display one character on LCD with decimal point */
+    493                    LCD_GLASS_WriteChar(&char_tmp, POINT_OFF, COLUMN_ON, i);
+    494                    break;
+    495                default:
+    496                    LCD_GLASS_WriteChar(&char_tmp, POINT_OFF, COLUMN_OFF, i);		
+   \                     ??LCD_GLASS_DisplayStrDeci_1:
+   \   000013 45 .. ..     MOV       S:?b1, S:?b10
+   \   000016 3F ..        CLR       S:?b0
+   \   000018 4F           CLR       A
+   \   000019 96           LDW       X, SP
+   \   00001A 1C 0001      ADDW      X, #0x1
+   \   00001D CD ....      CALL      L:LCD_GLASS_WriteChar
+    497                    break;
+    498              }/* Point on the next character */
+    499              ptr++;
+   \                     ??LCD_GLASS_DisplayStrDeci_2:
+   \   000020 BE ..        LDW       X, S:?w4
+   \   000022 1C 0002      ADDW      X, #0x2
+   \   000025 BF ..        LDW       S:?w4, X
+    500              
+    501              /* Increment the character counter */
+    502              i++;
+   \   000027 B6 ..        LD        A, S:?b10
+   \   000029 AB 01        ADD       A, #0x1
+   \   00002B B7 ..        LD        S:?b10, A
+   \                     ??LCD_GLASS_DisplayStrDeci_0:
+   \   00002D 92CE ..      LDW       X, [S:?w4.w]
+   \   000030 5D           TNZW      X
+   \   000031 27 41        JREQ      L:??LCD_GLASS_DisplayStrDeci_3
+   \   000033 B6 ..        LD        A, S:?b10
+   \   000035 A1 08        CP        A, #0x8
+   \   000037 24 3B        JRNC      L:??LCD_GLASS_DisplayStrDeci_3
+   \   000039 92CE ..      LDW       X, [S:?w4.w]
+   \   00003C 9F           LD        A, XL
+   \   00003D 6B 01        LD        (0x1,SP), A
+   \   00003F 92CE ..      LDW       X, [S:?w4.w]
+   \   000042 02           RLWA      X, A
+   \   000043 A4 F0        AND       A, #0xf0
+   \   000045 02           RLWA      X, A
+   \   000046 A4 00        AND       A, #0x0
+   \   000048 02           RLWA      X, A
+   \   000049 A3 4000      CPW       X, #0x4000
+   \   00004C 27 15        JREQ      L:??LCD_GLASS_DisplayStrDeci_4
+   \   00004E A3 8000      CPW       X, #0x8000
+   \   000051 26 C0        JRNE      L:??LCD_GLASS_DisplayStrDeci_1
+   \   000053 45 .. ..     MOV       S:?b1, S:?b10
+   \   000056 3F ..        CLR       S:?b0
+   \   000058 A6 01        LD        A, #0x1
+   \   00005A 96           LDW       X, SP
+   \   00005B 1C 0001      ADDW      X, #0x1
+   \   00005E CD ....      CALL      L:LCD_GLASS_WriteChar
+   \   000061 20 BD        JRA       L:??LCD_GLASS_DisplayStrDeci_2
+   \                     ??LCD_GLASS_DisplayStrDeci_4:
+   \   000063 45 .. ..     MOV       S:?b1, S:?b10
+   \   000066 35 01 ....   MOV       S:?b0, #0x1
+   \   00006A 4F           CLR       A
+   \   00006B 96           LDW       X, SP
+   \   00006C 1C 0001      ADDW      X, #0x1
+   \   00006F CD ....      CALL      L:LCD_GLASS_WriteChar
+   \   000072 20 AC        JRA       L:??LCD_GLASS_DisplayStrDeci_2
+    503            }
+    504          }
+   \                     ??LCD_GLASS_DisplayStrDeci_3:
+   \   000074 5B 01        ADD       SP, #0x1
+   \   000076 32 ....      POP       S:?b10
+   \   000079 CC ....      JP        L:?epilogue_w4
+    505          
+    506          /**
+    507            * @brief  This function Clear the whole LCD RAM.
+    508            * @param  None
+    509            * @retval None
+    510            */
+
+   \                                 In section .near_func.text, align 1
+    511          void LCD_GLASS_Clear(void)
+    512          {
+    513            uint8_t counter = 0;
+   \                     LCD_GLASS_Clear:
+   \   000000 3F ..        CLR       S:?b0
+    514            
+    515            for (counter = 0; counter <= LCD_RAMRegister_13; counter++)
+   \   000002 4F           CLR       A
+   \   000003 B7 ..        LD        S:?b0, A
+   \   000005 20 10        JRA       L:??LCD_GLASS_Clear_0
+    516            {
+    517              LCD->RAM[counter] = LCD_RAM_RESET_VALUE;
+   \                     ??LCD_GLASS_Clear_1:
+   \   000007 5F           CLRW      X
+   \   000008 41           EXG       A, XL
+   \   000009 B6 ..        LD        A, S:?b0
+   \   00000B 41           EXG       A, XL
+   \   00000C 1C 540C      ADDW      X, #0x540c
+   \   00000F 4F           CLR       A
+   \   000010 F7           LD        (X), A
+    518            }
+   \   000011 B6 ..        LD        A, S:?b0
+   \   000013 AB 01        ADD       A, #0x1
+   \   000015 B7 ..        LD        S:?b0, A
+   \                     ??LCD_GLASS_Clear_0:
+   \   000017 B6 ..        LD        A, S:?b0
+   \   000019 A1 0E        CP        A, #0xe
+   \   00001B 25 EA        JRC       L:??LCD_GLASS_Clear_1
+    519          }
+   \   00001D 81           RET
+    520          
+    521          /**
+    522            * @brief  Display a string in scrolling mode
+    523            * @param  ptr: Pointer to string to display on the LCD Glass.
+    524            * @param  nScroll: Specifies how many time the message will be scrolled
+    525            * @param  ScrollSpeed : Speciifes the speed of the scroll, low value gives
+    526            *         higher speed 
+    527            * @retval None
+    528            * @par    Required preconditions: The LCD should be cleared before to start the
+    529            *         write operation.
+    530            */
+
+   \                                 In section .near_func.text, align 1
+    531          void LCD_GLASS_ScrollSentence(uint8_t* ptr, uint16_t nScroll, uint16_t ScrollSpeed)
+    532          {
+   \                     LCD_GLASS_ScrollSentence:
+   \   000000 CD ....      CALL      L:?push_l2
+   \   000003 CD ....      CALL      L:?push_w6
+   \   000006 3B ....      PUSH      S:?b14
+   \   000009 9089         PUSHW     Y
+   \   00000B 52 07        SUB       SP, #0x7
+   \   00000D BF ..        LDW       S:?w1, X
+   \   00000F CD ....      CALL      L:?mov_w5_w0
+    533            uint8_t Repetition;
+    534            uint8_t Char_Nb;
+    535            uint8_t* ptr1;
+    536            uint8_t str[7]="";
+   \   000012 90AE ....    LDW       Y, #?_0
+   \   000016 96           LDW       X, SP
+   \   000017 1C 0001      ADDW      X, #0x1
+   \   00001A 89           PUSHW     X
+   \   00001B A6 07        LD        A, #0x7
+   \   00001D CD ....      CALL      L:?move1616_v_x_y_a
+   \   000020 85           POPW      X
+    537            uint8_t Str_size;
+    538            
+    539            if (ptr == 0) return;
+   \   000021 BE ..        LDW       X, S:?w1
+   \   000023 5D           TNZW      X
+   \   000024 26 03        JRNE      ??lb_0
+   \   000026 CC ....      JP        L:??LCD_GLASS_ScrollSentence_0
+    540          
+    541          /* To calculate end of string */
+    542            for (ptr1=ptr,Str_size = 0 ; *ptr1 != 0; Str_size++,ptr1++) ;
+   \                     ??lb_0:
+   \   000029 CD ....      CALL      L:?mov_w4_w1
+   \   00002C 3F ..        CLR       S:?b14
+   \   00002E 20 0B        JRA       L:??LCD_GLASS_ScrollSentence_1
+   \                     ??LCD_GLASS_ScrollSentence_2:
+   \   000030 B6 ..        LD        A, S:?b14
+   \   000032 AB 01        ADD       A, #0x1
+   \   000034 B7 ..        LD        S:?b14, A
+   \   000036 BE ..        LDW       X, S:?w4
+   \   000038 5C           INCW      X
+   \   000039 BF ..        LDW       S:?w4, X
+   \                     ??LCD_GLASS_ScrollSentence_1:
+   \   00003B 923D ..      TNZ       [S:?w4.w]
+   \   00003E 26 F0        JRNE      L:??LCD_GLASS_ScrollSentence_2
+    543            
+    544            ptr1 = ptr;
+   \   000040 CD ....      CALL      L:?mov_w4_w1
+    545            
+    546            LCD_GLASS_DisplayString(ptr);
+   \   000043 BE ..        LDW       X, S:?w1
+   \   000045 CD ....      CALL      L:LCD_GLASS_DisplayString
+    547            delay_ms(ScrollSpeed);
+   \   000048 BE ..        LDW       X, S:?w5
+   \   00004A CD ....      CALL      L:delay_ms
+    548                    
+    549          /* To shift the string for scrolling display*/
+    550            for (Repetition=0; Repetition<nScroll; Repetition++)
+   \   00004D 3F ..        CLR       S:?b13
+   \   00004F 20 06        JRA       L:??LCD_GLASS_ScrollSentence_3
+   \                     ??LCD_GLASS_ScrollSentence_4:
+   \   000051 B6 ..        LD        A, S:?b13
+   \   000053 AB 01        ADD       A, #0x1
+   \   000055 B7 ..        LD        S:?b13, A
+   \                     ??LCD_GLASS_ScrollSentence_3:
+   \   000057 5F           CLRW      X
+   \   000058 41           EXG       A, XL
+   \   000059 B6 ..        LD        A, S:?b13
+   \   00005B 41           EXG       A, XL
+   \   00005C 13 08        CPW       X, (0x8,SP)
+   \   00005E 25 03        JRC       ??lb_1
+   \   000060 CC ....      JP        L:??LCD_GLASS_ScrollSentence_0
+    551            {
+    552              for (Char_Nb=0; Char_Nb<Str_size; Char_Nb++)
+   \                     ??lb_1:
+   \   000063 3F ..        CLR       S:?b12
+   \   000065 20 0B        JRA       L:??LCD_GLASS_ScrollSentence_5
+    553              {
+    554                *(str) =* (ptr1+((Char_Nb+1)%Str_size));
+    555                *(str+1) =* (ptr1+((Char_Nb+2)%Str_size));
+    556                *(str+2) =* (ptr1+((Char_Nb+3)%Str_size));
+    557                *(str+3) =* (ptr1+((Char_Nb+4)%Str_size));
+    558                *(str+4) =* (ptr1+((Char_Nb+5)%Str_size));
+    559                *(str+5) =* (ptr1+((Char_Nb+6)%Str_size));
+    560                LCD_GLASS_Clear();
+    561                LCD_GLASS_DisplayString(str);
+    562            
+    563            /* user button pressed stop the scrolling sentence */
+    564                if (KeyPressed)
+    565                        return;   		
+    566                delay_ms(ScrollSpeed);
+   \                     ??LCD_GLASS_ScrollSentence_6:
+   \   000067 BE ..        LDW       X, S:?w5
+   \   000069 CD ....      CALL      L:delay_ms
+   \   00006C B6 ..        LD        A, S:?b12
+   \   00006E AB 01        ADD       A, #0x1
+   \   000070 B7 ..        LD        S:?b12, A
+   \                     ??LCD_GLASS_ScrollSentence_5:
+   \   000072 B6 ..        LD        A, S:?b12
+   \   000074 B1 ..        CP        A, S:?b14
+   \   000076 24 D9        JRNC      L:??LCD_GLASS_ScrollSentence_4
+   \   000078 5F           CLRW      X
+   \   000079 41           EXG       A, XL
+   \   00007A B6 ..        LD        A, S:?b12
+   \   00007C 41           EXG       A, XL
+   \   00007D 5C           INCW      X
+   \   00007E 905F         CLRW      Y
+   \   000080 61           EXG       A, YL
+   \   000081 B6 ..        LD        A, S:?b14
+   \   000083 61           EXG       A, YL
+   \   000084 CD ....      CALL      L:?smod16_y_x_y
+   \   000087 72B9 ....    ADDW      Y, S:?w4
+   \   00008B 90F6         LD        A, (Y)
+   \   00008D 6B 01        LD        (0x1,SP), A
+   \   00008F 5F           CLRW      X
+   \   000090 41           EXG       A, XL
+   \   000091 B6 ..        LD        A, S:?b12
+   \   000093 41           EXG       A, XL
+   \   000094 5C           INCW      X
+   \   000095 5C           INCW      X
+   \   000096 905F         CLRW      Y
+   \   000098 61           EXG       A, YL
+   \   000099 B6 ..        LD        A, S:?b14
+   \   00009B 61           EXG       A, YL
+   \   00009C CD ....      CALL      L:?smod16_y_x_y
+   \   00009F 72B9 ....    ADDW      Y, S:?w4
+   \   0000A3 90F6         LD        A, (Y)
+   \   0000A5 6B 02        LD        (0x2,SP), A
+   \   0000A7 5F           CLRW      X
+   \   0000A8 41           EXG       A, XL
+   \   0000A9 B6 ..        LD        A, S:?b12
+   \   0000AB 41           EXG       A, XL
+   \   0000AC 1C 0003      ADDW      X, #0x3
+   \   0000AF 905F         CLRW      Y
+   \   0000B1 61           EXG       A, YL
+   \   0000B2 B6 ..        LD        A, S:?b14
+   \   0000B4 61           EXG       A, YL
+   \   0000B5 CD ....      CALL      L:?smod16_y_x_y
+   \   0000B8 72B9 ....    ADDW      Y, S:?w4
+   \   0000BC 90F6         LD        A, (Y)
+   \   0000BE 6B 03        LD        (0x3,SP), A
+   \   0000C0 5F           CLRW      X
+   \   0000C1 41           EXG       A, XL
+   \   0000C2 B6 ..        LD        A, S:?b12
+   \   0000C4 41           EXG       A, XL
+   \   0000C5 1C 0004      ADDW      X, #0x4
+   \   0000C8 905F         CLRW      Y
+   \   0000CA 61           EXG       A, YL
+   \   0000CB B6 ..        LD        A, S:?b14
+   \   0000CD 61           EXG       A, YL
+   \   0000CE CD ....      CALL      L:?smod16_y_x_y
+   \   0000D1 72B9 ....    ADDW      Y, S:?w4
+   \   0000D5 90F6         LD        A, (Y)
+   \   0000D7 6B 04        LD        (0x4,SP), A
+   \   0000D9 5F           CLRW      X
+   \   0000DA 41           EXG       A, XL
+   \   0000DB B6 ..        LD        A, S:?b12
+   \   0000DD 41           EXG       A, XL
+   \   0000DE 1C 0005      ADDW      X, #0x5
+   \   0000E1 905F         CLRW      Y
+   \   0000E3 61           EXG       A, YL
+   \   0000E4 B6 ..        LD        A, S:?b14
+   \   0000E6 61           EXG       A, YL
+   \   0000E7 CD ....      CALL      L:?smod16_y_x_y
+   \   0000EA 72B9 ....    ADDW      Y, S:?w4
+   \   0000EE 90F6         LD        A, (Y)
+   \   0000F0 6B 05        LD        (0x5,SP), A
+   \   0000F2 5F           CLRW      X
+   \   0000F3 41           EXG       A, XL
+   \   0000F4 B6 ..        LD        A, S:?b12
+   \   0000F6 41           EXG       A, XL
+   \   0000F7 1C 0006      ADDW      X, #0x6
+   \   0000FA 905F         CLRW      Y
+   \   0000FC 61           EXG       A, YL
+   \   0000FD B6 ..        LD        A, S:?b14
+   \   0000FF 61           EXG       A, YL
+   \   000100 CD ....      CALL      L:?smod16_y_x_y
+   \   000103 72B9 ....    ADDW      Y, S:?w4
+   \   000107 90F6         LD        A, (Y)
+   \   000109 6B 06        LD        (0x6,SP), A
+   \   00010B CD ....      CALL      L:LCD_GLASS_Clear
+   \   00010E 96           LDW       X, SP
+   \   00010F 1C 0001      ADDW      X, #0x1
+   \   000112 CD ....      CALL      L:LCD_GLASS_DisplayString
+   \   000115 C6 ....      LD        A, L:KeyPressed
+   \   000118 A1 00        CP        A, #0x0
+   \   00011A 26 03        JRNE      ??lb_2
+   \   00011C CC ....      JP        L:??LCD_GLASS_ScrollSentence_6
+    567              }	
+    568            }
+    569          
+    570          }
+   \                     ??lb_2:
+   \                     ??LCD_GLASS_ScrollSentence_0:
+   \   00011F 5B 09        ADD       SP, #0x9
+   \   000121 32 ....      POP       S:?b14
+   \   000124 CC ....      JP        L:?epilogue_l2_w6
+
+   \                                 In section .near.rodata, align 1
+   \                     ?_0:
+   \   000000 00           DC8 ""
+   \   000001 00 00 00 00  DC8 0, 0, 0, 0, 0, 0
+   \          00 00       
+    571          
+    572          /******************* (C) COPYRIGHT 2010 STMicroelectronics *****END OF FILE****/
+
+   Section sizes:
+
+   Bytes  Function/Label
+   -----  --------------
+       7  ?_0
+      52  CapLetterMap
+       1  KeyPressed
+     226  LCD_Conv_Char_Seg
+      30  LCD_GLASS_Clear
+     124  LCD_GLASS_DisplayStrDeci
+      56  LCD_GLASS_DisplayString
+      86  LCD_GLASS_Init
+     295  LCD_GLASS_ScrollSentence
+    1006  LCD_GLASS_WriteChar
+      39  LCD_bar
+      46  LCD_contrast
+      20  NumberMap
+       2  t_bar
+
+ 
+     3 bytes in section .near.bss
+    79 bytes in section .near.rodata
+ 1 908 bytes in section .near_func.text
+ 
+ 1 908 bytes of CODE  memory
+    79 bytes of CONST memory
+     3 bytes of DATA  memory
+
+Errors: none
+Warnings: none

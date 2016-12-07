@@ -1,0 +1,1424 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V1.40.1.50106 for STM8             13/Nov/2013  14:14:40 #
+# Copyright 2010-2013 IAR Systems AB.                                         #
+#                                                                             #
+#    Source file  =  C:\Program Files\IAR Systems\Embedded Workbench          #
+#                    6.5\stm8\examples\ST-LINK\STM8L-Discovery\Project\Discov #
+#                    er\src\A7102.c                                           #
+#    Command line =  "C:\Program Files\IAR Systems\Embedded Workbench         #
+#                    6.5\stm8\examples\ST-LINK\STM8L-Discovery\Project\Discov #
+#                    er\src\A7102.c" -e -Ol --no_cse --no_unroll --no_inline  #
+#                    --no_code_motion --no_tbaa --no_cross_call --debug       #
+#                    --code_model small --data_model medium -o "C:\Program    #
+#                    Files\IAR Systems\Embedded Workbench                     #
+#                    6.5\stm8\examples\ST-LINK\STM8L-Discovery\Debug\Obj\"    #
+#                    --dlib_config "C:\Program Files\IAR Systems\Embedded     #
+#                    Workbench 6.5\stm8\LIB\dlstm8smn.h" -D STM8L15X_MD -lCN  #
+#                    "C:\Program Files\IAR Systems\Embedded Workbench         #
+#                    6.5\stm8\examples\ST-LINK\STM8L-Discovery\Debug\List\"   #
+#                    --diag_suppress Pe177,Pe550 -I "C:\Program Files\IAR     #
+#                    Systems\Embedded Workbench 6.5\stm8\examples\ST-LINK\STM #
+#                    8L-Discovery\Project\Discover\inc\" -I "C:\Program       #
+#                    Files\IAR Systems\Embedded Workbench                     #
+#                    6.5\stm8\examples\ST-LINK\STM8L-Discovery\Libraries\STM8 #
+#                    L15x_StdPeriph_Driver\inc\" --vregs 16                   #
+#    List file    =  C:\Program Files\IAR Systems\Embedded Workbench          #
+#                    6.5\stm8\examples\ST-LINK\STM8L-Discovery\Debug\List\A71 #
+#                    02.lst                                                   #
+#    Object file  =  C:\Program Files\IAR Systems\Embedded Workbench          #
+#                    6.5\stm8\examples\ST-LINK\STM8L-Discovery\Debug\Obj\A710 #
+#                    2.o                                                      #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+C:\Program Files\IAR Systems\Embedded Workbench 6.5\stm8\examples\ST-LINK\STM8L-Discovery\Project\Discover\src\A7102.c
+      1          /***********************************************
+      2          		*	copyrite (c) 2007
+      3          		*文件名: 	  A7102.c
+      4          		*作者:		  larry
+      5          		*当前版本:	  v1.0
+      6          		*建立时间:        2007-6-11 09:45
+      7          		*完成日期:
+      8          		
+      9          		*描述:            A7102驱动抽象程序,与MCU和IO
+     10          		*                 接口无关,由外部.h文件宏定义				     
+     11          ************************************************/		
+     12          #include    "A7102.h"
+     13          //#include    "include.h"
+     14          #include "discover_board.h"
+     15          #include "stm8l15x.h"
+
+   \                                 In section .near.bss, align 1
+     16          uchar rf_power;
+   \                     rf_power:
+   \   000000              DS8 1
+     17              /* 收发频率校准值保存 */
+
+   \                                 In section .near.bss, align 1
+     18          unsigned    int  TX_Freq_Calibration;
+   \                     TX_Freq_Calibration:
+   \   000000              DS8 2
+
+   \                                 In section .near.bss, align 1
+     19          unsigned    int  RX_Freq_Calibration;
+   \                     RX_Freq_Calibration:
+   \   000000              DS8 2
+
+   \                                 In section .near.data, align 1
+     20          unsigned    char  unlock_id_buff[0x04]    = {0x6C,0x61,0x6E,0x62};//初始化 ID  
+   \                     unlock_id_buff:
+   \   000000 6C 61 6E 62  DC8 108, 97, 110, 98
+
+   \                                 In section .near.data, align 1
+     21          unsigned    char  lock_id_buff[0x04]    = {0x6C,0x6F,0x63,0x6B};//加锁  ID 
+   \                     lock_id_buff:
+   \   000000 6C 6F 63 6B  DC8 108, 111, 99, 107
+
+   \                                 In section .near.data, align 1
+     22          uchar send_dat[8]={0xff,0x55,0x55,0x55,0x55,0x55,0x55,0x55};
+   \                     send_dat:
+   \   000000 FF 55 55 55  DC8 255, 85, 85, 85, 85, 85, 85, 85
+   \          55 55 55 55 
+     23          
+
+   \                                 In section .near_func.text, align 1
+     24          void A7102_RX(unsigned char dir)
+     25          {
+     26          	
+     27          	//GPIO_InitTypeDef GPIO_InitStructure;
+     28          	//GPIO_InitStructure.GPIO_Pin = GPIO_Pin_7;
+     29          	//GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+     30          	if(dir!=0)//
+   \                     A7102_RX:
+   \   000000 4D           TNZ       A
+   \   000001 27 0A        JREQ      L:??A7102_RX_0
+     31          		{
+     32          		//GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+     33                          GPIO_Init( GPIOB, GPIO_Pin_6, GPIO_Mode_In_FL_No_IT);
+   \   000003 3F ..        CLR       S:?b0
+   \   000005 A6 40        LD        A, #0x40
+   \   000007 AE 5005      LDW       X, #0x5005
+   \   00000A CC ....      JP        L:GPIO_Init
+     34          		}
+     35          	else
+     36          		{
+     37          		//GPIO_InitStructure.GPIO_Mode =  GPIO_Mode_Out_PP;
+     38                          GPIO_Init( GPIOB, GPIO_Pin_6, GPIO_Mode_Out_PP_Low_Fast);
+   \                     ??A7102_RX_0:
+   \   00000D 35 E0 ....   MOV       S:?b0, #0xe0
+   \   000011 A6 40        LD        A, #0x40
+   \   000013 AE 5005      LDW       X, #0x5005
+   \   000016 CC ....      JP        L:GPIO_Init
+     39          		}
+     40          	//GPIO_Init(GPIOA, &GPIO_InitStructure);
+     41          
+     42          }
+     43          
+     44          
+
+   \                                 In section .near_func.text, align 1
+     45          void Delayms(u32 nTime)
+     46          {
+     47                  unsigned int counter;
+     48          	int i,j,k;
+     49          
+     50                  for(i=20;i>0;i--)
+   \                     Delayms:
+   \   000000 90AE 0014    LDW       Y, #0x14
+   \   000004 20 08        JRA       L:??Delayms_0
+     51          		{
+     52          		for(j=100;j>0;j--);
+   \                     ??Delayms_1:
+   \   000006 5A           DECW      X
+   \                     ??Delayms_2:
+   \   000007 A3 0001      CPW       X, #0x1
+   \   00000A 2E FA        JRSGE     L:??Delayms_1
+   \   00000C 905A         DECW      Y
+   \                     ??Delayms_0:
+   \   00000E 90A3 0001    CPW       Y, #0x1
+   \   000012 2F 05        JRSLT     L:??Delayms_3
+   \   000014 AE 0064      LDW       X, #0x64
+   \   000017 20 EE        JRA       L:??Delayms_2
+     53          		}
+     54          }
+   \                     ??Delayms_3:
+   \   000019 81           RET
+     55          /***********************************************
+     56          函 数:	Byte_Write()
+     57          功 能:	写8bit数据到sck和sdio
+     58          输 入:	byte
+     59          输 出:	/
+     60          描 述:	左移位,bit7在先,sck负边缘触发 
+     61          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+     62          void mydelay()
+     63          {
+     64          	int i,j;
+     65          	
+     66                  for(i=2;i>0;i--)
+   \                     mydelay:
+   \   000000 90AE 0002    LDW       Y, #0x2
+   \   000004 20 08        JRA       L:??mydelay_0
+     67          		{
+     68          	
+     69          			for(j=10;j>0;j--);
+   \                     ??mydelay_1:
+   \   000006 5A           DECW      X
+   \                     ??mydelay_2:
+   \   000007 A3 0001      CPW       X, #0x1
+   \   00000A 2E FA        JRSGE     L:??mydelay_1
+   \   00000C 905A         DECW      Y
+   \                     ??mydelay_0:
+   \   00000E 90A3 0001    CPW       Y, #0x1
+   \   000012 2F 05        JRSLT     L:??mydelay_3
+   \   000014 AE 000A      LDW       X, #0xa
+   \   000017 20 EE        JRA       L:??mydelay_2
+     70          		}
+     71          }
+   \                     ??mydelay_3:
+   \   000019 81           RET
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+     72          void    Byte_Write(unsigned char byte)
+     73          {
+   \                     Byte_Write:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 B7 ..        LD        S:?b9, A
+     74                  unsigned char i;
+     75                  
+     76                  for(i = 0x00; i < 0x08; i++)
+   \   000005 3F ..        CLR       S:?b8
+   \   000007 20 20        JRA       L:??Byte_Write_0
+     77                  {
+     78                      if(byte&0x80)
+     79                         // iSPI_Sdi     = positive;//
+     80                          GPIO_HIGH(GPIOB,GPIO_Pin_6);
+     81                  
+     82                      else
+     83                        //  iSPI_Sdi     = negative;
+     84          			
+     85                                    GPIO_LOW(GPIOB,GPIO_Pin_6);	
+   \                     ??Byte_Write_1:
+   \   000009 721D 5005    BRES      L:0x5005, #0x6
+     86                          
+     87                      mydelay();
+   \                     ??Byte_Write_2:
+   \   00000D CD ....      CALL      L:mydelay
+     88                      
+     89                     // iSPI_Sck         = positive;
+     90          		
+     91                                  GPIO_HIGH(GPIOB,GPIO_Pin_5);
+   \   000010 721A 5005    BSET      L:0x5005, #0x5
+     92                      
+     93                      mydelay();
+   \   000014 CD ....      CALL      L:mydelay
+     94                      
+     95                      //iSPI_Sck         = negative;
+     96          
+     97                       GPIO_LOW(GPIOB,GPIO_Pin_5);	
+   \   000017 721B 5005    BRES      L:0x5005, #0x5
+     98                      mydelay();            
+   \   00001B CD ....      CALL      L:mydelay
+     99                      
+    100                      byte <<= 0x01;
+   \   00001E B6 ..        LD        A, S:?b9
+   \   000020 48           SLL       A
+   \   000021 B7 ..        LD        S:?b9, A
+   \   000023 B6 ..        LD        A, S:?b8
+   \   000025 AB 01        ADD       A, #0x1
+   \   000027 B7 ..        LD        S:?b8, A
+   \                     ??Byte_Write_0:
+   \   000029 B6 ..        LD        A, S:?b8
+   \   00002B A1 08        CP        A, #0x8
+   \   00002D 24 0E        JRNC      L:??Byte_Write_3
+   \   00002F B6 ..        LD        A, S:?b9
+   \   000031 A4 80        AND       A, #0x80
+   \   000033 A1 00        CP        A, #0x0
+   \   000035 27 D2        JREQ      L:??Byte_Write_1
+   \   000037 721C 5005    BSET      L:0x5005, #0x6
+   \   00003B 20 D0        JRA       L:??Byte_Write_2
+    101                  }
+    102          }
+   \                     ??Byte_Write_3:
+   \   00003D CC ....      JP        L:?epilogue_w4
+    103          /***********************************************
+    104          函 数:	Byte_Read()
+    105          功 能:	读8bit数据从sck和sdio
+    106          输 入:	/
+    107          输 出:	mybyte
+    108          描 述:	左移位,bit7在先,sck负边缘触发 
+    109          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    110          unsigned char   Byte_Read(void)
+    111          {
+   \                     Byte_Read:
+   \   000000 CD ....      CALL      L:?push_w4
+    112                  unsigned char i;
+    113                  unsigned char mybyte=0;
+   \   000003 3F ..        CLR       S:?b8
+    114                  
+    115                  for(i = 0x00; i < 0x08; i++)
+   \   000005 3F ..        CLR       S:?b9
+   \   000007 20 17        JRA       L:??Byte_Read_0
+    116                  {
+    117                      mybyte           <<= 0x01;
+    118                      
+    119                      mydelay(); 
+    120                      
+    121                    //  if(iSPI_Sdo)
+    122                    A7102_RX(1);
+    123            
+    124                    if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_6))
+    125                          mybyte        |= 0x01;
+    126                      else
+    127                          mybyte        &= 0xfe;
+   \                     ??Byte_Read_1:
+   \   000009 B6 ..        LD        A, S:?b8
+   \   00000B A4 FE        AND       A, #0xfe
+   \   00000D B7 ..        LD        S:?b8, A
+    128                          
+    129                      //iSPI_Sck         = positive; 
+    130                        GPIO_HIGH(GPIOB,GPIO_Pin_5);          
+   \                     ??Byte_Read_2:
+   \   00000F 721A 5005    BSET      L:0x5005, #0x5
+    131                      mydelay();
+   \   000013 CD ....      CALL      L:mydelay
+    132                       GPIO_LOW(GPIOB,GPIO_Pin_5);
+   \   000016 721B 5005    BRES      L:0x5005, #0x5
+   \   00001A B6 ..        LD        A, S:?b9
+   \   00001C AB 01        ADD       A, #0x1
+   \   00001E B7 ..        LD        S:?b9, A
+   \                     ??Byte_Read_0:
+   \   000020 B6 ..        LD        A, S:?b9
+   \   000022 A1 08        CP        A, #0x8
+   \   000024 24 21        JRNC      L:??Byte_Read_3
+   \   000026 B6 ..        LD        A, S:?b8
+   \   000028 48           SLL       A
+   \   000029 B7 ..        LD        S:?b8, A
+   \   00002B CD ....      CALL      L:mydelay
+   \   00002E A6 01        LD        A, #0x1
+   \   000030 CD ....      CALL      L:A7102_RX
+   \   000033 A6 40        LD        A, #0x40
+   \   000035 AE 5005      LDW       X, #0x5005
+   \   000038 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   00003B A1 00        CP        A, #0x0
+   \   00003D 27 CA        JREQ      L:??Byte_Read_1
+   \   00003F B6 ..        LD        A, S:?b8
+   \   000041 AA 01        OR        A, #0x1
+   \   000043 B7 ..        LD        S:?b8, A
+   \   000045 20 C8        JRA       L:??Byte_Read_2
+    133                      //iSPI_Sck         = negative;              
+    134                  }
+    135                  
+    136                  /* 返回读取数值 */
+    137          		A7102_RX(0);
+   \                     ??Byte_Read_3:
+   \   000047 4F           CLR       A
+   \   000048 CD ....      CALL      L:A7102_RX
+    138                  return    (mybyte);
+   \   00004B B6 ..        LD        A, S:?b8
+   \   00004D CC ....      JP        L:?epilogue_w4
+    139          }
+    140          /***********************************************
+    141          函 数:	Word_Write()
+    142          功 能:	写16bit数据到sck和sdio
+    143          输 入:	myword
+    144          输 出:	/
+    145          描 述:	左移位,bit15在先,sck负边缘触发 
+    146          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    147          void    Word_Write(unsigned int myword)
+    148          {
+   \                     Word_Write:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 3B ....      PUSH      S:?b10
+   \   000006 BF ..        LDW       S:?w4, X
+    149                  unsigned char i;
+    150                  
+    151                  for(i = 0x00; i < 0x10; i++)
+   \   000008 3F ..        CLR       S:?b10
+   \   00000A 20 20        JRA       L:??Word_Write_0
+    152                  {           
+    153                      if(myword&0x8000)
+    154                          //iSPI_Sdi     = positive;
+    155                           GPIO_HIGH(GPIOB,GPIO_Pin_6);
+    156                      else
+    157                          //iSPI_Sdi     = negative;
+    158                          GPIO_LOW(GPIOB,GPIO_Pin_6);
+   \                     ??Word_Write_1:
+   \   00000C 721D 5005    BRES      L:0x5005, #0x6
+    159                      
+    160                      mydelay();
+   \                     ??Word_Write_2:
+   \   000010 CD ....      CALL      L:mydelay
+    161                      
+    162                      //iSPI_Sck         = positive;
+    163                      GPIO_HIGH(GPIOB,GPIO_Pin_5);
+   \   000013 721A 5005    BSET      L:0x5005, #0x5
+    164                      mydelay();
+   \   000017 CD ....      CALL      L:mydelay
+    165                      
+    166                      //iSPI_Sck         = negative;
+    167                      GPIO_LOW(GPIOB,GPIO_Pin_5);
+   \   00001A 721B 5005    BRES      L:0x5005, #0x5
+    168                      mydelay();            
+   \   00001E CD ....      CALL      L:mydelay
+    169                      
+    170                      myword           <<= 0x01;
+   \   000021 BE ..        LDW       X, S:?w4
+   \   000023 58           SLLW      X
+   \   000024 BF ..        LDW       S:?w4, X
+   \   000026 B6 ..        LD        A, S:?b10
+   \   000028 AB 01        ADD       A, #0x1
+   \   00002A B7 ..        LD        S:?b10, A
+   \                     ??Word_Write_0:
+   \   00002C B6 ..        LD        A, S:?b10
+   \   00002E A1 10        CP        A, #0x10
+   \   000030 24 12        JRNC      L:??Word_Write_3
+   \   000032 BE ..        LDW       X, S:?w4
+   \   000034 02           RLWA      X, A
+   \   000035 A4 80        AND       A, #0x80
+   \   000037 02           RLWA      X, A
+   \   000038 A4 00        AND       A, #0x0
+   \   00003A 02           RLWA      X, A
+   \   00003B 5D           TNZW      X
+   \   00003C 27 CE        JREQ      L:??Word_Write_1
+   \   00003E 721C 5005    BSET      L:0x5005, #0x6
+   \   000042 20 CC        JRA       L:??Word_Write_2
+    171                  }
+    172          }
+   \                     ??Word_Write_3:
+   \   000044 32 ....      POP       S:?b10
+   \   000047 CC ....      JP        L:?epilogue_w4
+    173          /***********************************************
+    174          函 数:	Word_Read()
+    175          功 能:	读16bit数据从sck和sdio
+    176          输 入:	/
+    177          输 出:	myword
+    178          描 述:	左移位,bit16在先,sck负边缘触发 
+    179          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    180          unsigned int    Word_Read(void)
+    181          {
+   \                     Word_Read:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 3B ....      PUSH      S:?b10
+    182                  unsigned char i;
+    183                  unsigned int  myword=0;
+   \   000006 3F ..        CLR       S:?b9
+   \   000008 3F ..        CLR       S:?b8
+    184                  
+    185                  for(i = 0x00; i < 0x10; i++)
+   \   00000A 3F ..        CLR       S:?b10
+   \   00000C 20 1C        JRA       L:??Word_Read_0
+    186                  {
+    187                      myword  <<= 0x01;
+    188                      
+    189                      mydelay();
+    190                      
+    191                      //if(iSPI_Sdo)
+    192                     // #define	RF_GET_433 isBit32(GPIO_ReadInputData(GPIOB),9)
+    193                     A7102_RX(1);
+    194                     if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_6))
+    195                          myword|= 0x0001;
+    196                      else
+    197                          myword&= 0xfffe;
+   \                     ??Word_Read_1:
+   \   00000E BE ..        LDW       X, S:?w4
+   \   000010 02           RLWA      X, A
+   \   000011 A4 FF        AND       A, #0xff
+   \   000013 02           RLWA      X, A
+   \   000014 A4 FE        AND       A, #0xfe
+   \   000016 02           RLWA      X, A
+   \   000017 BF ..        LDW       S:?w4, X
+    198                          
+    199                      //iSPI_Sck         = positive; 
+    200                        GPIO_HIGH(GPIOB,GPIO_Pin_5);          
+   \                     ??Word_Read_2:
+   \   000019 721A 5005    BSET      L:0x5005, #0x5
+    201                      mydelay();
+   \   00001D CD ....      CALL      L:mydelay
+    202                      GPIO_LOW(GPIOB,GPIO_Pin_5);
+   \   000020 721B 5005    BRES      L:0x5005, #0x5
+   \   000024 B6 ..        LD        A, S:?b10
+   \   000026 AB 01        ADD       A, #0x1
+   \   000028 B7 ..        LD        S:?b10, A
+   \                     ??Word_Read_0:
+   \   00002A B6 ..        LD        A, S:?b10
+   \   00002C A1 10        CP        A, #0x10
+   \   00002E 24 26        JRNC      L:??Word_Read_3
+   \   000030 BE ..        LDW       X, S:?w4
+   \   000032 58           SLLW      X
+   \   000033 BF ..        LDW       S:?w4, X
+   \   000035 CD ....      CALL      L:mydelay
+   \   000038 A6 01        LD        A, #0x1
+   \   00003A CD ....      CALL      L:A7102_RX
+   \   00003D A6 40        LD        A, #0x40
+   \   00003F AE 5005      LDW       X, #0x5005
+   \   000042 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000045 A1 00        CP        A, #0x0
+   \   000047 27 C5        JREQ      L:??Word_Read_1
+   \   000049 BE ..        LDW       X, S:?w4
+   \   00004B 02           RLWA      X, A
+   \   00004C AA 00        OR        A, #0x0
+   \   00004E 02           RLWA      X, A
+   \   00004F AA 01        OR        A, #0x1
+   \   000051 02           RLWA      X, A
+   \   000052 BF ..        LDW       S:?w4, X
+   \   000054 20 C3        JRA       L:??Word_Read_2
+    203                      //iSPI_Sck         = negative;
+    204                  }
+    205                  A7102_RX(0);
+   \                     ??Word_Read_3:
+   \   000056 4F           CLR       A
+   \   000057 CD ....      CALL      L:A7102_RX
+    206                  /* 返回读取数值 */
+    207                  return    (myword);
+   \   00005A BE ..        LDW       X, S:?w4
+   \   00005C 32 ....      POP       S:?b10
+   \   00005F CC ....      JP        L:?epilogue_w4
+    208          }
+    209          /***********************************************
+    210          函 数:	A7102_Reset_Chip()
+    211          功 能:	复位A7102芯片 
+    212          输 入:	/
+    213          输 出:	/
+    214          描 述:	/
+    215          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    216          void    A7102_Reset_Chip(void)
+    217          {
+    218                  //iSPI_Scs        = negative;  
+    219          
+    220                  GPIO_LOW(GPIOB,GPIO_Pin_4);
+   \                     A7102_Reset_Chip:
+   \   000000 7219 5005    BRES      L:0x5005, #0x4
+    221                  /* 写A7102-Reset命令 */
+    222                Byte_Write(0x7a);     
+   \   000004 A6 7A        LD        A, #0x7a
+   \   000006 CD ....      CALL      L:Byte_Write
+    223          
+    224                     GPIO_HIGH(GPIOB,GPIO_Pin_4);  
+   \   000009 7218 5005    BSET      L:0x5005, #0x4
+    225                  //iSPI_Scs        = positive;
+    226          }
+   \   00000D 81           RET
+    227          /***********************************************
+    228          函 数:	A7102_Reset_FifoTX()
+    229          功 能:	复位A7102发送FIFO指针 
+    230          输 入:	/
+    231          输 出:	/
+    232          描 述:	/
+    233          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    234          void    A7102_Reset_FifoTX(void)
+    235          {
+    236                  //iSPI_Sck        = negative;
+    237          	
+    238                          GPIO_LOW(GPIOB,GPIO_Pin_5);
+   \                     A7102_Reset_FifoTX:
+   \   000000 721B 5005    BRES      L:0x5005, #0x5
+    239          		//iSPI_Scs        = negative;
+    240                  GPIO_LOW(GPIOB,GPIO_Pin_4);
+   \   000004 7219 5005    BRES      L:0x5005, #0x4
+    241                  /* 写A7102-FifoTX命令 */
+    242                  Byte_Write(0x6a);
+   \   000008 A6 6A        LD        A, #0x6a
+   \   00000A CD ....      CALL      L:Byte_Write
+    243                  GPIO_HIGH(GPIOB,GPIO_Pin_4);  
+   \   00000D 7218 5005    BSET      L:0x5005, #0x4
+    244                  //iSPI_Scs        = positive;
+    245          }
+   \   000011 81           RET
+    246          /***********************************************
+    247          函 数:	A7102_Reset_FifoRX()
+    248          功 能:	复位A7102接收FIFO指针 
+    249          输 入:	/
+    250          输 出:	/
+    251          描 述:	/
+    252          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    253          void    A7102_Reset_FifoRX(void)
+    254          {
+    255                  //iSPI_Sck        = negative;
+    256                  GPIO_LOW(GPIOB,GPIO_Pin_5);
+   \                     A7102_Reset_FifoRX:
+   \   000000 721B 5005    BRES      L:0x5005, #0x5
+    257                  //iSPI_Scs        = negative;
+    258                  GPIO_LOW(GPIOB,GPIO_Pin_4);
+   \   000004 7219 5005    BRES      L:0x5005, #0x4
+    259                  /* 写A7102-FifoRX命令 */
+    260                  Byte_Write(0xea);
+   \   000008 A6 EA        LD        A, #0xea
+   \   00000A CD ....      CALL      L:Byte_Write
+    261                  GPIO_HIGH(GPIOB,GPIO_Pin_4);  
+   \   00000D 7218 5005    BSET      L:0x5005, #0x4
+    262                  //iSPI_Scs        = positive;
+    263          }
+   \   000011 81           RET
+    264          /***********************************************
+    265          函 数:	A7102_Fifo_Read()
+    266          功 能:	读FIFO数据 
+    267          输 入:	read_buff
+    268          输 出:	/
+    269          描 述:	/
+    270          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    271          void    A7102_Fifo_Read(unsigned char *read_buff)
+    272          {
+   \                     A7102_Fifo_Read:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 3B ....      PUSH      S:?b10
+   \   000006 BF ..        LDW       S:?w4, X
+    273                  unsigned char i;
+    274          	
+    275                  //iSPI_Sck        = negative;
+    276          		 GPIO_LOW(GPIOB,GPIO_Pin_5);
+   \   000008 721B 5005    BRES      L:0x5005, #0x5
+    277          		 GPIO_LOW(GPIOB,GPIO_Pin_4);
+   \   00000C 7219 5005    BRES      L:0x5005, #0x4
+    278                        
+    279          
+    280          		//iSPI_Scs        = negative;
+    281                  
+    282                  /* 读A7102-FIFO命令 */
+    283                  Byte_Write(0xca);
+   \   000010 A6 CA        LD        A, #0xca
+   \   000012 CD ....      CALL      L:Byte_Write
+    284                  
+    285                  declare_sdo_input();
+   \   000015 721D 5005    BRES      L:0x5005, #0x6
+    286                  
+    287                  /* 读A7102-FIFO数据 */
+    288                  for(i = 0x00;i < C_FIFO_Byte;i++)
+   \   000019 3F ..        CLR       S:?b10
+   \   00001B 20 11        JRA       L:??A7102_Fifo_Read_0
+    289                  {
+    290                      *read_buff  = Byte_Read();
+   \                     ??A7102_Fifo_Read_1:
+   \   00001D CD ....      CALL      L:Byte_Read
+   \   000020 92C7 ..      LD        [S:?w4.w], A
+    291                      
+    292                      read_buff ++;
+   \   000023 BE ..        LDW       X, S:?w4
+   \   000025 5C           INCW      X
+   \   000026 BF ..        LDW       S:?w4, X
+    293                  }
+   \   000028 B6 ..        LD        A, S:?b10
+   \   00002A AB 01        ADD       A, #0x1
+   \   00002C B7 ..        LD        S:?b10, A
+   \                     ??A7102_Fifo_Read_0:
+   \   00002E B6 ..        LD        A, S:?b10
+   \   000030 A1 0B        CP        A, #0xb
+   \   000032 25 E9        JRC       L:??A7102_Fifo_Read_1
+    294                  
+    295                 // declare_sdo_output();
+    296                  GPIO_HIGH(GPIOB,GPIO_Pin_4);  
+   \   000034 7218 5005    BSET      L:0x5005, #0x4
+    297                  //iSPI_Scs        = positive;
+    298          }
+   \   000038 32 ....      POP       S:?b10
+   \   00003B CC ....      JP        L:?epilogue_w4
+    299          /***********************************************
+    300          函 数:	A7102_Fifo_Write()
+    301          功 能:	写FIFO数据 
+    302          输 入:	write_buff
+    303          输 出:	/
+    304          描 述:	/
+    305          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    306          void    A7102_Fifo_Write(unsigned char *write_buff)
+    307          {
+   \                     A7102_Fifo_Write:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 3B ....      PUSH      S:?b10
+   \   000006 BF ..        LDW       S:?w4, X
+    308                  unsigned char i;
+    309                  //iSPI_Sck        = negative;
+    310          		 GPIO_LOW(GPIOB,GPIO_Pin_5);
+   \   000008 721B 5005    BRES      L:0x5005, #0x5
+    311          		Delayms(1);
+   \   00000C 5F           CLRW      X
+   \   00000D BF ..        LDW       S:?w0, X
+   \   00000F 5C           INCW      X
+   \   000010 BF ..        LDW       S:?w1, X
+   \   000012 CD ....      CALL      L:Delayms
+    312          		//iSPI_Scs        = negative;
+    313          		 GPIO_LOW(GPIOB,GPIO_Pin_4);
+   \   000015 7219 5005    BRES      L:0x5005, #0x4
+    314                  /* 写A7102-FIFO命令 */
+    315                  Byte_Write(0x5a);
+   \   000019 A6 5A        LD        A, #0x5a
+   \   00001B CD ....      CALL      L:Byte_Write
+    316                  /* 写A7102-FIFO数据 */
+    317                  for(i = 0x00;i < C_FIFO_Byte;i++)
+   \   00001E 3F ..        CLR       S:?b10
+   \   000020 20 11        JRA       L:??A7102_Fifo_Write_0
+    318                  {
+    319                      Byte_Write(*write_buff);
+   \                     ??A7102_Fifo_Write_1:
+   \   000022 92C6 ..      LD        A, [S:?w4.w]
+   \   000025 CD ....      CALL      L:Byte_Write
+    320                      
+    321                      write_buff ++;
+   \   000028 BE ..        LDW       X, S:?w4
+   \   00002A 5C           INCW      X
+   \   00002B BF ..        LDW       S:?w4, X
+    322                  }
+   \   00002D B6 ..        LD        A, S:?b10
+   \   00002F AB 01        ADD       A, #0x1
+   \   000031 B7 ..        LD        S:?b10, A
+   \                     ??A7102_Fifo_Write_0:
+   \   000033 B6 ..        LD        A, S:?b10
+   \   000035 A1 0B        CP        A, #0xb
+   \   000037 25 E9        JRC       L:??A7102_Fifo_Write_1
+    323                  GPIO_HIGH(GPIOB,GPIO_Pin_4);  
+   \   000039 7218 5005    BSET      L:0x5005, #0x4
+    324                  //iSPI_Scs        = positive;
+    325          }
+   \   00003D 32 ....      POP       S:?b10
+   \   000040 CC ....      JP        L:?epilogue_w4
+    326          /***********************************************
+    327          函 数:	A7102_Id_Write()
+    328          功 能:	写ID到A7102内部寄存器 
+    329          输 入:	buff_id[]
+    330          输 出:	/
+    331          描 述:	写ID必须一次性写入 
+    332          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    333          void    A7102_Id_Write(unsigned char *id_buff)
+    334          {
+   \                     A7102_Id_Write:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 3B ....      PUSH      S:?b10
+   \   000006 BF ..        LDW       S:?w4, X
+    335                  unsigned char i;
+    336          	
+    337                  //iSPI_Sck        = negative;
+    338          		 GPIO_LOW(GPIOB,GPIO_Pin_5);
+   \   000008 721B 5005    BRES      L:0x5005, #0x5
+    339                  //iSPI_Scs        = negative;
+    340                  GPIO_LOW(GPIOB,GPIO_Pin_4);
+   \   00000C 7219 5005    BRES      L:0x5005, #0x4
+    341                  /* 写A7102-ID命令 */
+    342                  Byte_Write(0x2a);
+   \   000010 A6 2A        LD        A, #0x2a
+   \   000012 CD ....      CALL      L:Byte_Write
+    343                  
+    344                  /* 写A7102-ID数据 */
+    345                  for(i = 0x00;i < 0x04;i++)
+   \   000015 3F ..        CLR       S:?b10
+   \   000017 20 11        JRA       L:??A7102_Id_Write_0
+    346                  {
+    347                      Byte_Write(*id_buff);
+   \                     ??A7102_Id_Write_1:
+   \   000019 92C6 ..      LD        A, [S:?w4.w]
+   \   00001C CD ....      CALL      L:Byte_Write
+    348                      
+    349                      id_buff ++;
+   \   00001F BE ..        LDW       X, S:?w4
+   \   000021 5C           INCW      X
+   \   000022 BF ..        LDW       S:?w4, X
+    350                  }
+   \   000024 B6 ..        LD        A, S:?b10
+   \   000026 AB 01        ADD       A, #0x1
+   \   000028 B7 ..        LD        S:?b10, A
+   \                     ??A7102_Id_Write_0:
+   \   00002A B6 ..        LD        A, S:?b10
+   \   00002C A1 04        CP        A, #0x4
+   \   00002E 25 E9        JRC       L:??A7102_Id_Write_1
+    351                  GPIO_HIGH(GPIOB,GPIO_Pin_4);  
+   \   000030 7218 5005    BSET      L:0x5005, #0x4
+    352                  //iSPI_Scs        = positive;
+    353          }
+   \   000034 32 ....      POP       S:?b10
+   \   000037 CC ....      JP        L:?epilogue_w4
+    354          /***********************************************
+    355          函 数:	A7102_Id_Read()
+    356          功 能:	读ID从A7102内部寄存器 
+    357          输 入:	/
+    358          输 出:	buff_id[]
+    359          描 述:	读ID必须一次性读出 
+    360          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    361          void    A7102_Id_Read(unsigned char *id_buff)
+    362          {
+   \                     A7102_Id_Read:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 3B ....      PUSH      S:?b10
+   \   000006 BF ..        LDW       S:?w4, X
+    363                  unsigned char i;
+    364          	
+    365                  //iSPI_Sck        = negative;
+    366          		 GPIO_LOW(GPIOB,GPIO_Pin_5);
+   \   000008 721B 5005    BRES      L:0x5005, #0x5
+    367                  //iSPI_Scs        = negative;
+    368                  GPIO_LOW(GPIOB,GPIO_Pin_4);
+   \   00000C 7219 5005    BRES      L:0x5005, #0x4
+    369                  /* 读A7102-ID命令 */
+    370                  Byte_Write(0xaa);
+   \   000010 A6 AA        LD        A, #0xaa
+   \   000012 CD ....      CALL      L:Byte_Write
+    371                  
+    372                  declare_sdo_input();
+   \   000015 721D 5005    BRES      L:0x5005, #0x6
+    373                  
+    374                  /* 读A7102-ID数据 */
+    375                  for(i = 0x00;i < 0x04;i++)
+   \   000019 3F ..        CLR       S:?b10
+   \   00001B 20 11        JRA       L:??A7102_Id_Read_0
+    376                  {
+    377                      *id_buff    = Byte_Read();
+   \                     ??A7102_Id_Read_1:
+   \   00001D CD ....      CALL      L:Byte_Read
+   \   000020 92C7 ..      LD        [S:?w4.w], A
+    378                      
+    379                      id_buff ++;
+   \   000023 BE ..        LDW       X, S:?w4
+   \   000025 5C           INCW      X
+   \   000026 BF ..        LDW       S:?w4, X
+    380                  }
+   \   000028 B6 ..        LD        A, S:?b10
+   \   00002A AB 01        ADD       A, #0x1
+   \   00002C B7 ..        LD        S:?b10, A
+   \                     ??A7102_Id_Read_0:
+   \   00002E B6 ..        LD        A, S:?b10
+   \   000030 A1 04        CP        A, #0x4
+   \   000032 25 E9        JRC       L:??A7102_Id_Read_1
+    381                  
+    382                  declare_sdo_output();
+   \   000034 4F           CLR       A
+   \   000035 CD ....      CALL      L:A7102_RX
+    383                  GPIO_HIGH(GPIOB,GPIO_Pin_4);  
+   \   000038 7218 5005    BSET      L:0x5005, #0x4
+    384                  //iSPI_Scs        = positive;
+    385          }
+   \   00003C 32 ....      POP       S:?b10
+   \   00003F CC ....      JP        L:?epilogue_w4
+    386          /***********************************************
+    387          函 数:	A7102_Register_Write()
+    388          功 能:	写控制数据到A7102内部寄存器 
+    389          输 入:	addr,parameter
+    390          输 出:	/
+    391          描 述:	/
+    392          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    393          void    A7102_Register_Write(unsigned char addr,unsigned int parameter)
+    394          {
+   \                     A7102_Register_Write:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 3B ....      PUSH      S:?b10
+   \   000006 B7 ..        LD        S:?b10, A
+   \   000008 BF ..        LDW       S:?w4, X
+    395                  //iSPI_Sck        = negative;
+    396                  GPIO_LOW(GPIOB,GPIO_Pin_5);
+   \   00000A 721B 5005    BRES      L:0x5005, #0x5
+    397                  mydelay();
+   \   00000E CD ....      CALL      L:mydelay
+    398                  //iSPI_Scs        = negative;
+    399                  GPIO_LOW(GPIOB,GPIO_Pin_4);
+   \   000011 7219 5005    BRES      L:0x5005, #0x4
+    400                  addr           &= 0x0f;
+   \   000015 B6 ..        LD        A, S:?b10
+   \   000017 A4 0F        AND       A, #0xf
+   \   000019 B7 ..        LD        S:?b10, A
+    401                  /* 写A7102-参数配置命令 */
+    402                  Byte_Write(addr);
+   \   00001B B6 ..        LD        A, S:?b10
+   \   00001D CD ....      CALL      L:Byte_Write
+    403                  
+    404                  /* 写A7102-参数配置数据 */
+    405                  Word_Write(parameter);
+   \   000020 BE ..        LDW       X, S:?w4
+   \   000022 CD ....      CALL      L:Word_Write
+    406                  GPIO_HIGH(GPIOB,GPIO_Pin_4);  
+   \   000025 7218 5005    BSET      L:0x5005, #0x4
+    407                  //iSPI_Scs        = positive;
+    408          }
+   \   000029 32 ....      POP       S:?b10
+   \   00002C CC ....      JP        L:?epilogue_w4
+    409          /***********************************************
+    410          函 数:	A7102_Register_Read()
+    411          功 能:	读控制数据从A7102内部寄存器 
+    412          输 入:	addr
+    413          输 出:	parameter
+    414          描 述:	/
+    415          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    416          unsigned int    A7102_Register_Read(unsigned char addr)
+    417          {
+   \                     A7102_Register_Read:
+   \   000000 CD ....      CALL      L:?push_w4
+   \   000003 B7 ..        LD        S:?b8, A
+    418                  unsigned int    parameter;
+    419          	
+    420                  //iSPI_Sck        = negative;
+    421                  GPIO_LOW(GPIOB,GPIO_Pin_5);
+   \   000005 721B 5005    BRES      L:0x5005, #0x5
+    422                  mydelay();
+   \   000009 CD ....      CALL      L:mydelay
+    423                 // iSPI_Scs        = negative;
+    424          		 GPIO_LOW(GPIOB,GPIO_Pin_4);
+   \   00000C 7219 5005    BRES      L:0x5005, #0x4
+    425                  
+    426                  addr           &= 0x0f;
+   \   000010 B6 ..        LD        A, S:?b8
+   \   000012 A4 0F        AND       A, #0xf
+   \   000014 B7 ..        LD        S:?b8, A
+    427                  addr           |= 0x80;
+   \   000016 B6 ..        LD        A, S:?b8
+   \   000018 AA 80        OR        A, #0x80
+   \   00001A B7 ..        LD        S:?b8, A
+    428                  
+    429                  /* 读A7102-参数配置命令 */
+    430                  Byte_Write(addr);
+   \   00001C B6 ..        LD        A, S:?b8
+   \   00001E CD ....      CALL      L:Byte_Write
+    431                  
+    432                  declare_sdo_input();
+   \   000021 721D 5005    BRES      L:0x5005, #0x6
+    433                  
+    434                  /* 读A7102-参数配置数据 */
+    435                  parameter       = Word_Read();
+   \   000025 CD ....      CALL      L:Word_Read
+   \   000028 BF ..        LDW       S:?w4, X
+    436                  
+    437                  declare_sdo_output();
+   \   00002A 4F           CLR       A
+   \   00002B CD ....      CALL      L:A7102_RX
+    438                  
+    439                  //iSPI_Scs        = positive;
+    440                  GPIO_HIGH(GPIOB,GPIO_Pin_4);  
+   \   00002E 7218 5005    BSET      L:0x5005, #0x4
+    441                  /* 返回读取数值 */
+    442                  return    (parameter);
+   \   000032 BE ..        LDW       X, S:?w4
+   \   000034 CC ....      JP        L:?epilogue_w4
+    443          }
+    444          /***********************************************
+    445          函 数:	A7102_Status_Transmit()
+    446          功 能:	A7102设置为发射状态 
+    447          输 入:	/
+    448          输 出:	/
+    449          描 述:	A7102使用12.8M晶体为基准源 
+    450          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    451          void    A7102_Status_Transmit(void)
+    452          {
+    453          #if  mode_switch
+    454                  iSPI_Tre        = negative;
+    455                  iSPI_Trs        = positive;
+    456                  iSPI_Tre        = positive;
+    457          #else
+    458                  #if mode_fifo
+    459                      /* standby mode */
+    460                      A7102_Register_Write(Reg_ModeControl,0x00d0);
+   \                     A7102_Status_Transmit:
+   \   000000 AE 00D0      LDW       X, #0xd0
+   \   000003 A6 0F        LD        A, #0xf
+   \   000005 CD ....      CALL      L:A7102_Register_Write
+    461                      /* TX frequency */
+    462                      A7102_Register_Write(Reg_PLL_II,C_Tx_Frequency);
+   \   000008 AE CB32      LDW       X, #0xcb32
+   \   00000B A6 02        LD        A, #0x2
+   \   00000D CD ....      CALL      L:A7102_Register_Write
+    463                      /* 校准值 */
+    464                      A7102_Register_Write(Reg_Calibration,TX_Freq_Calibration);
+   \   000010 CE ....      LDW       X, L:TX_Freq_Calibration
+   \   000013 A6 0E        LD        A, #0xe
+   \   000015 CD ....      CALL      L:A7102_Register_Write
+    465                      /* transimit mode */
+    466                      A7102_Register_Write(Reg_ModeControl,0x00d8); 
+   \   000018 AE 00D8      LDW       X, #0xd8
+   \   00001B A6 0F        LD        A, #0xf
+   \   00001D CC ....      JP        L:A7102_Register_Write
+    467                  #else
+    468                      /* standby mode */
+    469                      A7102_Register_Write(Reg_ModeControl,0x0050);
+    470                      /* TX frequency */
+    471                      A7102_Register_Write(Reg_PLL_II,C_Tx_Frequency);
+    472                      /* 校准值 */
+    473                      A7102_Register_Write(Reg_Calibration,TX_Freq_Calibration);
+    474                      /* transimit mode */
+    475                      A7102_Register_Write(Reg_ModeControl,0x0058);
+    476                  #endif
+    477          #endif
+    478          }
+    479          /***********************************************
+    480          函 数:	A7102_Receiver_Enable()
+    481          功 能:	A7102接收使能 
+    482          输 入:	/
+    483          输 出:	/
+    484          描 述:	A7102使用12.8M晶体为基准源 
+    485          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    486          void    A7102_Receiver_Enable(void)
+    487          {
+    488          #if mode_fifo
+    489                  A7102_Register_Write(Reg_ModeControl,0x00c8);
+   \                     A7102_Receiver_Enable:
+   \   000000 AE 00C8      LDW       X, #0xc8
+   \   000003 A6 0F        LD        A, #0xf
+   \   000005 CC ....      JP        L:A7102_Register_Write
+    490          #else
+    491                  A7102_Register_Write(Reg_ModeControl,0x0048);
+    492          #endif
+    493          }
+    494          /***********************************************
+    495          函 数:	A7102_Status_Receiver()
+    496          功 能:	A7102设置为接收状态 
+    497          输 入:	/
+    498          输 出:	/
+    499          描 述:	A7102使用12.8M晶体为基准源 
+    500          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    501          void    A7102_Status_Receiver(void)
+    502          {
+    503          #if  mode_switch
+    504                  iSPI_Tre        = negative;
+    505                  iSPI_Trs        = negative;
+    506                  iSPI_Tre        = positive;
+    507          #else
+    508                  #if mode_fifo
+    509                      /* standby mode */
+    510                      A7102_Register_Write(Reg_ModeControl,0x00c0); 
+   \                     A7102_Status_Receiver:
+   \   000000 AE 00C0      LDW       X, #0xc0
+   \   000003 A6 0F        LD        A, #0xf
+   \   000005 CD ....      CALL      L:A7102_Register_Write
+    511                      /* RX frequency */
+    512                      A7102_Register_Write(Reg_PLL_II,C_Rx_Frequency);
+   \   000008 AE CF32      LDW       X, #0xcf32
+   \   00000B A6 02        LD        A, #0x2
+   \   00000D CD ....      CALL      L:A7102_Register_Write
+    513                      /* 校准值 */
+    514                      A7102_Register_Write(Reg_Calibration,RX_Freq_Calibration);
+   \   000010 CE ....      LDW       X, L:RX_Freq_Calibration
+   \   000013 A6 0E        LD        A, #0xe
+   \   000015 CD ....      CALL      L:A7102_Register_Write
+    515                      /* enable receive mode */
+    516                      A7102_Receiver_Enable();
+   \   000018              REQUIRE A7102_Receiver_Enable
+   \   000018              ;               // Fall through to label A7102_Receiver_Enable
+    517                  #else
+    518                      /* standby mode */
+    519                      A7102_Register_Write(Reg_ModeControl,0x0040);
+    520                      /* RX frequency */
+    521                      A7102_Register_Write(Reg_PLL_II,C_Rx_Frequency);
+    522                      /* 校准值 */
+    523                      A7102_Register_Write(Reg_Calibration,RX_Freq_Calibration);
+    524                      /* enable receive mode */
+    525                      A7102_Receiver_Enable();
+    526                  #endif
+    527          #endif
+    528          }
+    529          /***********************************************
+    530          函 数:	A7102_Calibration_Frequency()
+    531          功 能:	频率校准IF和VCO
+    532          输 入:	frequency(PLL II寄存器)
+    533          输 出:	/
+    534          描 述:	A7102使用12.8M晶体为基准源 
+    535          ***********************************************/
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    536          unsigned int    A7102_Calibration_Frequency(unsigned int frequency)
+    537          {
+   \                     A7102_Calibration_Frequency:
+   \   000000 CD ....      CALL      L:?push_w4
+    538                  unsigned int temp,a=0;
+   \   000003 3F ..        CLR       S:?b9
+   \   000005 3F ..        CLR       S:?b8
+    539                  
+    540                  /* 设置频率 */
+    541                  A7102_Register_Write(Reg_PLL_II,frequency);
+   \   000007 A6 02        LD        A, #0x2
+   \   000009 CD ....      CALL      L:A7102_Register_Write
+    542          
+    543                  /* 读出校准寄存器内值 */
+    544                  temp    = A7102_Register_Read(Reg_ModeControl);
+   \   00000C A6 0F        LD        A, #0xf
+   \   00000E CD ....      CALL      L:A7102_Register_Read
+    545                  
+    546                  /* 打开校准功能 */
+    547                  temp   |= 0x0006;
+   \   000011 02           RLWA      X, A
+   \   000012 AA 00        OR        A, #0x0
+   \   000014 02           RLWA      X, A
+   \   000015 AA 06        OR        A, #0x6
+   \   000017 02           RLWA      X, A
+    548                  A7102_Register_Write(Reg_ModeControl,temp);
+   \   000018 A6 0F        LD        A, #0xf
+   \   00001A CD ....      CALL      L:A7102_Register_Write
+    549                  
+    550                  /* 等待校准完成 */
+    551                  do
+    552                  {
+    553                      temp    = A7102_Register_Read(Reg_ModeControl);
+   \                     ??A7102_Calibration_Frequency_0:
+   \   00001D A6 0F        LD        A, #0xf
+   \   00001F CD ....      CALL      L:A7102_Register_Read
+    554          			a++;
+   \   000022 90BE ..      LDW       Y, S:?w4
+   \   000025 905C         INCW      Y
+   \   000027 90BF ..      LDW       S:?w4, Y
+    555                  }while((temp&0x0006)&&(a<1000));
+   \   00002A 9F           LD        A, XL
+   \   00002B A4 06        AND       A, #0x6
+   \   00002D A1 00        CP        A, #0x0
+   \   00002F 27 07        JREQ      L:??A7102_Calibration_Frequency_1
+   \   000031 BE ..        LDW       X, S:?w4
+   \   000033 A3 03E8      CPW       X, #0x3e8
+   \   000036 25 E5        JRC       L:??A7102_Calibration_Frequency_0
+    556                  
+    557                  /* 获取校准的IF和VCO的补偿值 */
+    558                  temp    = A7102_Register_Read(Reg_Calibration);
+   \                     ??A7102_Calibration_Frequency_1:
+   \   000038 A6 0E        LD        A, #0xe
+   \   00003A CD ....      CALL      L:A7102_Register_Read
+    559                  /* MVBS =1,MIFS = 1,在状态切换时使用手动校准 */
+    560                  temp   &= 0x00ef;
+   \   00003D 02           RLWA      X, A
+   \   00003E A4 00        AND       A, #0x0
+   \   000040 02           RLWA      X, A
+   \   000041 A4 EF        AND       A, #0xef
+   \   000043 02           RLWA      X, A
+    561                  temp   |= 0x4910;
+   \   000044 CD ....      CALL      L:?or16_x_x_dw
+   \   000047 4910         DC16      0x4910
+    562          
+    563                  /* 返回校准的IF和VCO的补偿值 */
+    564                  return    temp;
+   \   000049 CC ....      JP        L:?epilogue_w4
+    565          }
+    566          /***********************************************
+    567          函 数:	A7102_Config_Chip()
+    568          功 能:	配置A7102参数寄存器 
+    569          输 入:	/
+    570          输 出:	/
+    571          描 述:	A7102使用12.8M晶体为基准源 
+    572          ***********************************************/
+    573          void Delay_1s(u32 nTime);
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    574          void    A7102_Config_Chip(void)
+    575          {
+    576          //        uint    temp = 0x0000;
+    577          
+    578          //        iSPI_Tre        = negative;
+    579          //        iSPI_Trs        = negative;
+    580          
+    581                  /* rate = 50kbps,IF = 100k,CSC[2:0] = 001,System clock = 64*IF = 6.4M */
+    582                  A7102_Register_Write(Reg_SystemClock,data_rate);
+   \                     A7102_Config_Chip:
+   \   000000 AE 3079      LDW       X, #0x3079
+   \   000003 4F           CLR       A
+   \   000004 CD ....      CALL      L:A7102_Register_Write
+    583                  
+    584                  /* TX = 434MHZ * 2 = (12.8mhz/(RRC[3:0]+1)) * (IP[7:0]+(FP[15:0]/65535)),RRC[3:0] = 0000,IP[7:0] = 0100 0011 */
+    585                  /* MDIV = 0,IP选择范围32 - 127 */
+    586                  A7102_Register_Write(Reg_PLL_I,0x0043);
+   \   000007 AE 0043      LDW       X, #0x43
+   \   00000A A6 01        LD        A, #0x1
+   \   00000C CD ....      CALL      L:A7102_Register_Write
+    587                  /* FP[15:0],默认434Mhz */
+    588                  A7102_Register_Write(Reg_PLL_II,0xcfff);
+   \   00000F AE CFFF      LDW       X, #0xcfff
+   \   000012 A6 02        LD        A, #0x2
+   \   000014 CD ....      CALL      L:A7102_Register_Write
+    589                  /* default 0x0000,无调校 */
+    590                  A7102_Register_Write(Reg_PLL_III,0x0000);
+   \   000017 5F           CLRW      X
+   \   000018 A6 03        LD        A, #0x3
+   \   00001A CD ....      CALL      L:A7102_Register_Write
+    591                  /* PDL[2:0] =011,HFB =0(<500mhz),VCS[1:0] =00,CPS =0(normal),CPC[1:0] =01(charge pump 1mA) */
+    592                  /* VCS[1:0] = 01,VCO电流控制为1,SDPW = 1 */
+    593                  A7102_Register_Write(Reg_PLL_IV,0x066c);        
+   \   00001D AE 066C      LDW       X, #0x66c
+   \   000020 A6 04        LD        A, #0x4
+   \   000022 CD ....      CALL      L:A7102_Register_Write
+    594                  
+    595                  
+    596          #if     mode_modulation  
+    597                  /* TME =1,发射带调制,GS =0,高斯滤波器关闭,FX = 12.8M,FDP = 101,FD = 0010 0000,
+    598                     频偏 fdev = FX/(RRC[3:0]+1)*(FD[7:0]*(2^(FDP[2:0]))/8/65536),
+    599                               = 12800khz * 32 * (2^5) /(2^19) 
+    600                               = 25khz */
+    601                  A7102_Register_Write(Reg_TXI,0x1520);
+   \   000025 AE 1520      LDW       X, #0x1520
+   \   000028 A6 06        LD        A, #0x6
+   \   00002A CD ....      CALL      L:A7102_Register_Write
+    602                     
+    603          #else         
+    604                  /* TME =0,发射未带调制,GS =0,高斯滤波器关闭,FX = 12.8M,
+    605                     频偏 fdev = FX/(RRC[3:0]+1)*(FD[7:0]*(2^(FDP[2:0]))/8/65536),
+    606                               = 12800khz * 128 * (2^5) /(2^19)
+    607                               = 100khz */
+    608                  A7102_Register_Write(Reg_TXI,0x0580);    
+    609          #endif
+    610          
+    611                  /* 发射功率设置为最大功率 */
+    612                  A7102_Register_Write(Reg_TXII,0x0337);//0X0335
+   \   00002D AE 0337      LDW       X, #0x337
+   \   000030 A6 07        LD        A, #0x7
+   \   000032 CD ....      CALL      L:A7102_Register_Write
+    613          
+    614                  /* MPL[1:0] = 01,SLF[2:0] = 100,ETH[1:0] = 00,无位错误选择,DMOS = 0,DMG[1:0] = 01,增益X3 */
+    615                  /* BW[1:0] = 00,50Khz,ULS= 1,下旁波带,HGM =1,高增益 */
+    616                  A7102_Register_Write(Reg_RXI,0x1813);
+   \   000035 AE 1813      LDW       X, #0x1813
+   \   000038 A6 08        LD        A, #0x8
+   \   00003A CD ....      CALL      L:A7102_Register_Write
+    617          
+    618                  /* Amic推荐值 */
+    619                  A7102_Register_Write(Reg_RXII,0x500b);
+   \   00003D AE 500B      LDW       X, #0x500b
+   \   000040 A6 09        LD        A, #0x9
+   \   000042 CD ....      CALL      L:A7102_Register_Write
+    620          
+    621                  /* CDM =1,carrier 打开 */
+    622                  A7102_Register_Write(Reg_ADC,0x0000);
+   \   000045 5F           CLRW      X
+   \   000046 A6 0A        LD        A, #0xa
+   \   000048 CD ....      CALL      L:A7102_Register_Write
+    623                  
+    624                  /* TX fifo <8字节,RX fifo > 56字节时报警, */
+    625                  A7102_Register_Write(Reg_FIFO,0x4000|(C_FIFO_Byte-1));
+   \   00004B AE 400A      LDW       X, #0x400a
+   \   00004E A6 0B        LD        A, #0xb
+   \   000050 CD ....      CALL      L:A7102_Register_Write
+    626                  
+    627                  /* MCS = 0,Manchester打开,FECS = 0,FEC打开,CRCS =0,CRC打开,IDL =1，id code =4字节,PML[1:0] = 11,前导4字节 */
+    628                  A7102_Register_Write(Reg_Code,0x150f);
+   \   000053 AE 150F      LDW       X, #0x150f
+   \   000056 A6 0C        LD        A, #0xc
+   \   000058 CD ....      CALL      L:A7102_Register_Write
+    629          
+    630          #if     mode_switch
+    631                  /* 打开位时钟,管脚控制收发,无载波侦测 */
+    632                  A7102_Register_Write(Reg_PinControl,0x0222);
+    633          #else
+    634                  // 打开位时钟,寄存器控制收发,无载波侦测 */
+    635                  A7102_Register_Write(Reg_PinControl,0x0022);
+   \   00005B AE 0022      LDW       X, #0x22
+   \   00005E A6 0D        LD        A, #0xd
+   \   000060 CD ....      CALL      L:A7102_Register_Write
+    636          #endif
+    637          
+    638                  /* VTL[2:0] = 100,VTH = VDD-0.5V, VTH[2:0] = 100,VTL =0.5V */
+    639                  A7102_Register_Write(Reg_Calibration,0x4886);
+   \   000063 AE 4886      LDW       X, #0x4886
+   \   000066 A6 0E        LD        A, #0xe
+   \   000068 CD ....      CALL      L:A7102_Register_Write
+    640                  
+    641             	    A7102_Register_Write(Reg_ModeControl,0x00e0); //STB2==>syn mode
+   \   00006B AE 00E0      LDW       X, #0xe0
+   \   00006E A6 0F        LD        A, #0xf
+   \   000070 CD ....      CALL      L:A7102_Register_Write
+    642          	    //delay 80us	
+    643          	    /*
+    644                  for(temp = 0;temp < 0xffff;temp++)
+    645                  {
+    646                      _nop_();
+    647                      _nop_();
+    648                  }*///seekii
+    649          		//Delay_1s(1);
+    650          		Delayms(200);
+   \   000073 AE 00C8      LDW       X, #0xc8
+   \   000076 BF ..        LDW       S:?w1, X
+   \   000078 5F           CLRW      X
+   \   000079 BF ..        LDW       S:?w0, X
+   \   00007B CC ....      JP        L:Delayms
+    651          }
+    652          /***********************************************
+    653          函 数:	Initialisation_RF()
+    654          功 能:	上电初始化A7102
+    655          输 入:	/
+    656          输 出:	/
+    657          描 述:	/
+    658          ***********************************************/
+
+   \                                 In section .near.bss, align 1
+    659          unsigned char rece_buff[4]={0x00,0x00,0x00,0x00};
+   \                     rece_buff:
+   \   000000              DS8 4
+
+   \                                 In section .near_func.text, align 1, keep-with-next
+    660          void    Initialisation_RF(void)
+    661          {
+    662          //        uint i;
+    663                  A7102_Reset_Chip();
+   \                     Initialisation_RF:
+   \   000000 CD ....      CALL      L:A7102_Reset_Chip
+    664          
+    665             	Delayms(200);
+   \   000003 AE 00C8      LDW       X, #0xc8
+   \   000006 BF ..        LDW       S:?w1, X
+   \   000008 5F           CLRW      X
+   \   000009 BF ..        LDW       S:?w0, X
+   \   00000B CD ....      CALL      L:Delayms
+    666                  /* XCC =1(crystal high current),XS =1(crystal on) */
+    667                  /* CGS = 0,因为使用标准12.8mhz晶体 */
+    668                  A7102_Register_Write(Reg_Crystal,0x0015);
+   \   00000E AE 0015      LDW       X, #0x15
+   \   000011 A6 05        LD        A, #0x5
+   \   000013 CD ....      CALL      L:A7102_Register_Write
+    669          	/* FMT =0,normal mode,FMS =1,FIFO mode,CER = 1,
+    670          	RF chip 使能,PLLE = 0,使用12.8Mhz标准晶体,PLL关闭 */
+    671                  A7102_Register_Write(Reg_ModeControl,0x00c0); //STB1==>standby mode
+   \   000016 AE 00C0      LDW       X, #0xc0
+   \   000019 A6 0F        LD        A, #0xf
+   \   00001B CD ....      CALL      L:A7102_Register_Write
+    672              
+    673          		//if(rf)
+    674          		//{A7102_Id_Write(&lock_id_buff);}
+    675          		//else
+    676          		//{A7102_Id_Write(&unlock_id_buff);}
+    677          	A7102_Id_Write(&unlock_id_buff[0]); 
+   \   00001E AE ....      LDW       X, #unlock_id_buff
+   \   000021 CD ....      CALL      L:A7102_Id_Write
+    678          
+    679          		//A7102_Id_Read(rece_buff);
+    680          		//DebugSendBuf(rece_buff,4);
+    681          		
+    682                  A7102_Config_Chip();        
+   \   000024 CD ....      CALL      L:A7102_Config_Chip
+    683                  TX_Freq_Calibration    = A7102_Calibration_Frequency(C_Tx_Frequency); 
+   \   000027 AE CB32      LDW       X, #0xcb32
+   \   00002A CD ....      CALL      L:A7102_Calibration_Frequency
+   \   00002D CF ....      LDW       L:TX_Freq_Calibration, X
+    684                  RX_Freq_Calibration    = A7102_Calibration_Frequency(C_Rx_Frequency);
+   \   000030 AE CF32      LDW       X, #0xcf32
+   \   000033 CD ....      CALL      L:A7102_Calibration_Frequency
+   \   000036 CF ....      LDW       L:RX_Freq_Calibration, X
+    685               
+    686                  /* reset fifo */
+    687                  A7102_Reset_FifoRX();
+   \   000039 CD ....      CALL      L:A7102_Reset_FifoRX
+    688                  A7102_Reset_FifoTX();
+   \   00003C CD ....      CALL      L:A7102_Reset_FifoTX
+    689                  /* 默认接收状态 */
+    690                  A7102_Status_Receiver();     
+   \   00003F CC ....      JP        L:A7102_Status_Receiver
+    691          }
+
+   \                                 In section .near_func.text, align 1
+    692          uchar a7102_send_data(unsigned char *send_dat)
+    693          {
+   \                     a7102_send_data:
+   \   000000 CD ....      CALL      L:?push_w4
+    694              unsigned int t=0;
+   \   000003 3F ..        CLR       S:?b9
+   \   000005 3F ..        CLR       S:?b8
+    695              A7102_Fifo_Write(send_dat);
+   \   000007 CD ....      CALL      L:A7102_Fifo_Write
+    696              A7102_Status_Transmit();           
+   \   00000A CD ....      CALL      L:A7102_Status_Transmit
+   \   00000D 20 0E        JRA       L:??a7102_send_data_0
+    697              while((GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_3))&&(t<700))
+    698          	{
+    699          	   t++;
+   \                     ??a7102_send_data_1:
+   \   00000F BE ..        LDW       X, S:?w4
+   \   000011 5C           INCW      X
+   \   000012 BF ..        LDW       S:?w4, X
+    700          	   //Delayms(2);
+    701          	   Delayms(1);
+   \   000014 5F           CLRW      X
+   \   000015 BF ..        LDW       S:?w0, X
+   \   000017 5C           INCW      X
+   \   000018 BF ..        LDW       S:?w1, X
+   \   00001A CD ....      CALL      L:Delayms
+    702          	}
+   \                     ??a7102_send_data_0:
+   \   00001D A6 08        LD        A, #0x8
+   \   00001F AE 5005      LDW       X, #0x5005
+   \   000022 CD ....      CALL      L:GPIO_ReadInputDataBit
+   \   000025 A1 00        CP        A, #0x0
+   \   000027 27 07        JREQ      L:??a7102_send_data_2
+   \   000029 BE ..        LDW       X, S:?w4
+   \   00002B A3 02BC      CPW       X, #0x2bc
+   \   00002E 25 DF        JRC       L:??a7102_send_data_1
+    703          	if(t>699){
+   \                     ??a7102_send_data_2:
+   \   000030 BE ..        LDW       X, S:?w4
+   \   000032 A3 02BC      CPW       X, #0x2bc
+   \   000035 25 05        JRC       L:??a7102_send_data_3
+    704          		//A7102_Status_Receiver();
+    705          		return(wrong);
+   \   000037 A6 0F        LD        A, #0xf
+   \   000039 CC ....      JP        L:?epilogue_w4
+    706          		}
+    707              A7102_Status_Receiver();
+   \                     ??a7102_send_data_3:
+   \   00003C CD ....      CALL      L:A7102_Status_Receiver
+    708          	return(right);
+   \   00003F A6 F0        LD        A, #0xf0
+   \   000041 CC ....      JP        L:?epilogue_w4
+    709          }
+    710          
+    711          
+    712          
+
+   Section sizes:
+
+   Bytes  Function/Label
+   -----  --------------
+      76  A7102_Calibration_Frequency
+     126  A7102_Config_Chip
+      62  A7102_Fifo_Read
+      67  A7102_Fifo_Write
+      66  A7102_Id_Read
+      58  A7102_Id_Write
+      25  A7102_RX
+       8  A7102_Receiver_Enable
+      55  A7102_Register_Read
+      47  A7102_Register_Write
+      14  A7102_Reset_Chip
+      18  A7102_Reset_FifoRX
+      18  A7102_Reset_FifoTX
+      24  A7102_Status_Receiver
+      32  A7102_Status_Transmit
+      80  Byte_Read
+      64  Byte_Write
+      26  Delayms
+      66  Initialisation_RF
+       2  RX_Freq_Calibration
+       2  TX_Freq_Calibration
+      98  Word_Read
+      74  Word_Write
+      68  a7102_send_data
+       4  lock_id_buff
+      26  mydelay
+       4  rece_buff
+       1  rf_power
+       8  send_dat
+       4  unlock_id_buff
+
+ 
+     9 bytes in section .near.bss
+    16 bytes in section .near.data
+ 1 198 bytes in section .near_func.text
+ 
+ 1 198 bytes of CODE memory
+    25 bytes of DATA memory
+
+Errors: none
+Warnings: none
